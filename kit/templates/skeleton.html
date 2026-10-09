@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/* ===== reset ===== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:1920px; height:1080px; overflow:hidden; background:#000;
+  font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ===== 舞台 ===== */
+#scene {
+  position:relative; width:1920px; height:1080px; overflow:hidden;
+  background: {{SCENE_BG}};
+}
+
+/* 三层视差容器：运镜时按不同速率位移，防 PPT 感的关键 */
+.layer {
+  position:absolute; left:0; top:0; width:1920px; height:1080px;
+  transform-origin:0 0;      /* applyParallax 的数学前提，别改 */
+  will-change:transform;
+}
+#bg { z-index:1; }   /* 背景 · 视差 30% */
+#mg { z-index:2; }   /* 中景 · 视差 60% */
+#fg { z-index:3; }   /* 前景 · 视差 100% */
+
+/* 背景装饰：保证骨架开箱不白屏（填入真实内容后可整段删） */
+#bgGrid {
+  position:absolute; left:0; top:0; width:1920px; height:1080px; opacity:.8;
+  background-image:
+    linear-gradient(rgba(140,190,220,.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140,190,220,.10) 1px, transparent 1px);
+  background-size:80px 80px;
+}
+#bgGlow {
+  position:absolute; left:0; top:0; width:1920px; height:1080px;
+  background: {{GLOW_BG}};
+}
+#vignette {
+  position:absolute; left:0; top:0; width:1920px; height:1080px;
+  z-index:9; pointer-events:none;
+  background:radial-gradient(120% 92% at 50% 48%, rgba(0,0,0,0) 38%, rgba(0,0,0,.58) 100%);
+}
+
+/* 分镜占位块：每镜一块，填充完内容后连同样式一起删 */
+.shot-ph {
+  position:absolute; left:510px; top:452px; width:900px;
+  padding:26px 30px; border-radius:16px;
+  border:1.5px dashed rgba(255,255,255,.22);
+  background:rgba(8,14,22,.42);
+  text-align:center; opacity:0;
+}
+.shot-ph .sp-no { font-size:22px; font-weight:800; letter-spacing:.12em; color:#7cfff0;
+                  text-shadow:0 0 14px rgba(124,255,240,.5), 0 1px 3px rgba(0,0,0,.9); }
+.shot-ph .sp-tx { margin-top:14px; font-size:40px; font-weight:700; line-height:1.32;
+                  color:#cfd8e8; text-shadow:0 2px 6px rgba(0,0,0,.9); }
+.shot-ph .sp-kw { margin-top:14px; font-size:17px; letter-spacing:.04em; color:#93a1b8;
+                  text-shadow:0 1px 3px rgba(0,0,0,.9); }
+
+/* ===== 组件样式（fx-components.css 注入） ===== */
+{{COMPONENT_CSS}}
+</style>
+</head>
+<body>
+
+<div id="scene">
+  <!-- 背景层：视差 30% -->
+  <div id="bg" class="layer">
+    <div id="bgGrid"></div>
+    <div id="bgGlow"></div>
+  </div>
+
+  <!-- 中景层：视差 60%。分镜占位块由 JS 建在这里 -->
+  <div id="mg" class="layer"></div>
+
+  <!-- 前景层：视差 100%。主体信息元素建在这里 -->
+  <div id="fg" class="layer"></div>
+
+  <div id="vignette"></div>
+</div>
+
+<script>
+/* =============================================================================
+ * {{PROJECT_NAME}} · 语音转动画工程骨架（由 new_project.js 生成）
+ *
+ * 铁律：
+ *   1. 禁止 CSS animation / transition / @keyframes —— 一切由 __frame(t) 纯函数驱动
+ *   2. t 单位 = 秒；同一 t 必须产出完全相同的状态（确定性渲染）
+ *   3. 信息元素入场锚 = ASR 词轴 word.start，不是段边界均分
+ *   4. 内容不得超出安全框 ({{SAFE_X0}},{{SAFE_Y0}})-({{SAFE_X1}},{{SAFE_Y1}})
+ * ========================================================================== */
+
+/* ============================== 运行时 ============================== */
+{{RUNTIME_JS}}
+
+/* ============================== 规格锁 ============================== */
+const CFG = {{CONFIG_JSON}};
+const DUR = CFG.dur;                     /* 审计脚本靠抓 const DUR 拿时长，别删 */
+const SAFE = CFG.safe;
+const PHASES = {{PHASES_JSON}};
+const CAMKEYS = {{CAMKEYS_JSON}};
+
+const FX = window.FX;
+const W = CFG.w, H = CFG.h;
+const $ = (id) => document.getElementById(id);
+const L_BG = $('bg'), L_MG = $('mg'), L_FG = $('fg');
+
+/* ============================== 分镜占位块 ==============================
+ * 骨架自带：每镜一块，按各自 asr 窗口淡入淡出，用来验证 PHASES 接线正确。
+ * 填充完真实内容后：删掉 initPlaceholders / driveShotPlaceholder 与 .shot-ph 样式。
+ * ==================================================================== */
+const PHS = [];
+(function initPlaceholders() {
+  for (let i = 0; i < PHASES.length; i++) {
+    const p = PHASES[i];
+    const d = document.createElement('div');
+    d.className = 'shot-ph';
+    d.setAttribute('data-safe', '1');
+    d.innerHTML =
+      '<div class="sp-no">SHOT ' + p.shot + ' · ' + p.id + ' · cam=' + p.cam + '</div>' +
+      '<div class="sp-tx">' + p.narration + '</div>' +
+      '<div class="sp-kw">voice_kw: ' + p.voice_kw + ' &nbsp;|&nbsp; accept: ' + p.accept + '</div>';
+    L_MG.appendChild(d);
+    PHS.push(d);
+  }
+})();
+
+function driveShotPlaceholder(i, t) {
+  const p = PHASES[i], el = PHS[i];
+  if (!el) return;
+  /* 入场 → 驻留 → 退场：FX.env 取双向窗口系数（退场起点提前 dOut，
+     保证 t0+dIn ≤ tOut，峰值不打折）；缩放仍走 eob 弹入 */
+  const k = FX.env(t, p.t0, p.t1 - 0.34, 0.34, 0.34);
+  const e = FX.eob(FX.c1(t, p.t0, 0.55));
+  /* ×0.62 是占位块自己的柔和系数（kr∈[0,1] 满量程就是 1），不是 env 打折；
+     填真实内容时把这个系数换成你要的目标峰值即可 */
+  el.style.opacity = (k * 0.62).toFixed(4);
+  el.style.transform =
+    'translateY(' + ((1 - k) * 24).toFixed(2) + 'px) scale(' + (0.94 + 0.06 * e).toFixed(4) + ')';
+}
+
+/* ============================== 安全框自检 ==============================
+ * 扫描带 data-safe 标记的元素，把越界记录进 window.__oob（不打断渲染）。
+ * 填充内容时给需要守框的元素加 data-safe="1"。
+ * ==================================================================== */
+let _oobSeen = '';
+function selfCheck(t) {
+  const els = document.querySelectorAll('[data-safe]');
+  const bad = [];
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    let op = 1, n = el;
+    while (n && n !== document.documentElement) {
+      op *= parseFloat(getComputedStyle(n).opacity);
+      n = n.parentElement;
+    }
+    if (op < 0.35) continue;                       /* 看不见的不算越界 */
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    if (r.left < SAFE.x0 - 1 || r.top < SAFE.y0 - 1 || r.right > SAFE.x1 + 1 || r.bottom > SAFE.y1 + 1) {
+      bad.push(el.id || el.className || el.tagName);
+    }
+  }
+  if (!bad.length) return;
+  const key = bad.join('|');
+  if (key === _oobSeen) return;
+  _oobSeen = key;
+  window.__oob = window.__oob || [];
+  if (window.__oob.length < 50) window.__oob.push({ t: +t.toFixed(3), els: bad });
+}
+
+/* ============================== 帧驱动 ============================== */
+window.__frame = function (t) {
+  t = (t < 0 ? 0 : (t > DUR ? DUR : t));
+
+  /* ---- ① 相机 → 三层视差（前景 100% / 中景 60% / 背景 30%） ---- */
+  const cam = FX.camAt(CAMKEYS, t);
+  FX.applyParallax(L_BG, cam, 0.30);
+  FX.applyParallax(L_MG, cam, 0.60);
+  FX.applyParallax(L_FG, cam, 1.00);
+
+  /* ---- 背景呼吸：14s 周期极缓慢缩放 + 高亮微脉动，消静态死板感 ----
+     bgA 带 0.55 下限：首帧就有可见背景，不黑屏 */
+  const breath = Math.sin(t * 0.45) * 0.5 + 0.5;
+  const pulse = Math.sin(t * 1.70) * 0.5 + 0.5;
+  const bgA = 0.55 + 0.45 * FX.eo(t / 0.9);
+  $('bgGrid').style.opacity = (0.8 * (0.92 + 0.08 * breath) * bgA).toFixed(4);
+  $('bgGrid').style.transform = 'scale(' + (1 + 0.02 * breath).toFixed(5) + ')';
+  $('bgGlow').style.opacity = ((0.80 + 0.20 * pulse) * bgA).toFixed(4);
+
+  /* ---- ② 逐镜头驱动元素 ---- */
+{{SHOT_DRIVE}}
+
+  /* ---- ③ 安全框自检 ---- */
+  selfCheck(t);
+};
+
+/* ============================== 渲染器契约 ============================== */
+window.getInfo = function () {
+  return { width: CFG.w, height: CFG.h, fps: CFG.fps, numberOfFrames: Math.round(CFG.dur * CFG.fps) };
+};
+window.__dur = DUR;
+window.__frame(0);
+</script>
+</body>
+</html>

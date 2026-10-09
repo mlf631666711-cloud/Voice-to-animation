@@ -1,0 +1,54 @@
+{
+  "name": "demo3d",
+  "title": "3D 摄影机脚手架冒烟测试",
+  "mode": "3d",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "dur": 8,
+  "lens": "35-street",
+  "film": "kodak-vision3-250d",
+  "filmStrength": 0.85,
+  "dof": true,
+  "shake": { "amp": 4, "freq": 1.6 },
+
+  "layers": [
+    {
+      "id": "FLOOR", "fixed": true, "noDof": true,
+      "x": 0, "y": 520, "z": -600,
+      "w": 16000, "h": 12000,
+      "html": "<div class='g-floor' style='width:100%;height:100%'></div>"
+    },
+    {
+      "id": "BACK", "fixed": true, "noDof": true,
+      "x": 0, "y": 0, "z": -2600,
+      "w": 16000, "h": 6000,
+      "html": "<div class='g-back' style='width:100%;height:100%;opacity:.5'></div>"
+    },
+    {
+      "id": "A", "shot": 1, "x": -700, "y": -40, "z": 0, "w": 820, "h": 460,
+      "html": "<div class='ph-card' style='width:100%;height:100%'><div class='ph-no'>PANEL A</div><div class='ph-tx'>环绕主体</div></div>"
+    },
+    {
+      "id": "B", "shot": 2, "x": 1900, "y": 60, "z": -500, "w": 820, "h": 460,
+      "html": "<div class='ph-card' style='width:100%;height:100%'><div class='ph-no'>PANEL B</div><div class='ph-tx'>飞过去推近</div></div>"
+    }
+  ],
+
+  "shots": [
+    {
+      "shot": 1, "t0": 0, "t1": 4, "subject": "A", "caption": "绕着 A 转 70 度",
+      "cam3d": [
+        { "type": "place", "at": { "x": -700, "y": -120, "z": 1500 }, "look": "A", "zoom": 1400 },
+        { "type": "orbit", "subject": "A", "angleDeg": 70, "dur": 4 }
+      ]
+    },
+    {
+      "shot": 2, "t0": 4, "t1": 8, "subject": "B", "caption": "飞到 B 面前推近",
+      "cam3d": [
+        { "type": "approach", "subject": "B", "dist": 950, "azimuth": 14, "height": -40, "dur": 2.2 },
+        { "type": "push", "subject": "B", "dist": 480, "dur": 1.8, "ease": "ei" }
+      ]
+    }
+  ]
+}

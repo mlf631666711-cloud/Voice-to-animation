@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+/* =============================================================================
+ * 3D 摄影机工程骨架（由 kit/new_project.js --mode 3d 生成）
+ *
+ * DOM 分层（⚠️ 顺序和结构不能动，3D 能不能成立全看这里）：
+ *   #stage     2D 最外框：overflow 裁剪 + 底色
+ *     #screen  2D 包装层：★ 胶片 filter 只能挂这一层 ★
+ *       #viewport  透视容器：perspective = 摄影机 Zoom(px)
+ *         #camera   摄影机节点：transform = 摄影机世界变换的逆矩阵
+ *           #world   世界节点：所有 .layer 挂这
+ *     #overlays 2D 顶层：暗角 / 颗粒 / 拉丝（不进胶片滤镜，压在最上）
+ *
+ * flattening 铁律：opacity / filter / clip-path / mask / overflow≠visible /
+ * isolation:isolate / contain:paint 一旦出现在某元素，会把它的**子元素**拍平。
+ *   ✅ 只能用在 .card（叶子）
+ *   ❌ 绝不能用在 #screen 之外、#viewport / #camera / #world / .layer 上
+ *      （例外：#screen 和 #stage 是 2D 包装层，本来就该拍平）
+ * ========================================================================== */
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:1920px; height:1080px; overflow:hidden; background:#000;
+  font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+#stage { position:relative; width:1920px; height:1080px; overflow:hidden; }
+
+/* --- 2D 包装层：胶片滤镜挂这 --- */
+#screen {
+  position:absolute; inset:0; overflow:hidden;
+  background: {{SCENE_BG}};
+}
+/* --- 3D 链 --- */
+#viewport { position:absolute; inset:0; perspective:1400px; perspective-origin:50% 50%; }
+#camera   { position:absolute; inset:0; transform-style:preserve-3d; will-change:transform; }
+#world    { position:absolute; left:50%; top:50%; width:0; height:0; transform-style:preserve-3d; }
+/* --- 顶层 2D 叠加（暗角/颗粒/拉丝由 CAMLENS.buildOverlays 注入） --- */
+#overlays { position:absolute; inset:0; pointer-events:none; z-index:50; }
+
+/* --- 3D 图层 --- */
+/* .layer 是纯定位容器：宽高 0 + 原点即世界坐标点，只写 transform，不写 opacity/filter */
+.layer { position:absolute; left:0; top:0; width:0; height:0; transform-style:preserve-3d; }
+/* .card 是叶子：显隐/滤镜/景深模糊全在它身上，不影响 3D 链的其它节点 */
+.card  { position:absolute; left:0; top:0; opacity:0; will-change:transform,opacity; }
+
+/* ============================ 组件样式（fx-components.css 注入） ============================ */
+{{COMPONENT_CSS}}
+/* ============================ 3D 场景自带装饰 ============================ */
+/* 地板网格 + 背板网格：给 3D 空间一个可感知的参照系，没有它运镜会“看不出在动” */
+.g-floor, .g-back {
+  background-image:
+    repeating-linear-gradient(0deg,  rgba(120,190,255,.16) 0 1px, transparent 1px 160px),
+    repeating-linear-gradient(90deg, rgba(120,190,255,.16) 0 1px, transparent 1px 160px);
+  -webkit-mask-image:radial-gradient(ellipse 46% 46% at 50% 50%, #000 0%, rgba(0,0,0,.55) 46%, transparent 78%);
+          mask-image:radial-gradient(ellipse 46% 46% at 50% 50%, #000 0%, rgba(0,0,0,.55) 46%, transparent 78%);
+}
+.g-back {
+  background-image:
+    repeating-linear-gradient(0deg,  rgba(120,190,255,.10) 0 1px, transparent 1px 220px),
+    repeating-linear-gradient(90deg, rgba(120,190,255,.10) 0 1px, transparent 1px 220px);
+}
+/* 网格中心的柔光池，避免画面死黑
+   ⚠️⚠️ `{{GLOW_BG}}` 的契约 = **只写色标列表**，例如 `rgba(70,150,255,.18) 0%, rgba(0,0,0,0) 70%`。
+      绝不能把一整个 `radial-gradient(...)` 传进来 —— 那会变成**嵌套 gradient**，
+      整条声明非法、被浏览器**静默丢弃**（不报错、不 console、DOM 里那一层还在），
+      于是得到一个"看着在、其实从没画过任何像素"的死层。
+      实测踩过：uvc-seg9 的 `.g-pool`（3000×1800）从头到尾是空的。
+      `kit/new_project.js` 现在会**硬失败**拦这个（spec.glow 含 `gradient(` 就报错）。 */
+.g-pool {
+  background: radial-gradient(58% 52% at 50% 50%, {{GLOW_BG}});
+}
+
+/* ============================ 占位卡（填完真实内容可删） ============================ */
+.ph-card {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border-radius:22px; padding:34px 40px; text-align:center;
+  border:1.5px solid rgba(130,190,255,.30);
+  background:linear-gradient(160deg, rgba(18,26,46,.92) 0%, rgba(10,15,28,.92) 100%);
+  box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.ph-no  { font-size:22px; font-weight:800; letter-spacing:.14em; color:#5fd8ff;
+          text-shadow:0 0 16px rgba(95,216,255,.55); }
+.ph-tx  { margin-top:16px; font-size:52px; font-weight:800; line-height:1.24; color:#EAF2FF; }
+.ph-sub { margin-top:14px; font-size:20px; letter-spacing:.04em; color:#B5C2DC; } /* 原 #8FA0BE 违反深底小字铁律，已提亮 */
+
+/* ============================ Cluster UI 母题 ============================
+ * 7 段典型集群面板共享一套玻璃卡 / 标签 / 头像 / 拓扑样式。
+ * 真实项目里可整段删掉换成自己的组件库。 */
+.b-card { width:100%; height:100%; display:flex; flex-direction:column; align-items:center;
+          justify-content:center; border-radius:24px; padding:46px 56px; box-sizing:border-box;
+          background:linear-gradient(160deg, rgba(20,28,52,.92) 0%, rgba(8,12,22,.92) 100%);
+          border:1px solid rgba(130,190,255,.22);
+          box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+          font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+          color:#EAF2FF; text-align:center; position:relative; }
+.b-card h1 { font-size:88px; font-weight:800; letter-spacing:.02em; line-height:1.08; margin-bottom:18px;
+             background:linear-gradient(180deg,#fff 0%,#9FB6D9 100%);
+             -webkit-background-clip:text; background-clip:text; color:transparent;
+             filter:drop-shadow(0 4px 12px rgba(0,0,0,.6)); }
+.b-card h2 { font-size:58px; font-weight:700; margin-bottom:24px; color:#EAF2FF; }
+.b-card p  { font-size:26px; color:#B5C2DC; letter-spacing:.04em; }   /* #8FA0BE→#B5C2DC */
+.b-live { position:absolute; top:24px; right:32px; display:flex; align-items:center; gap:10px;
+          font-size:16px; font-weight:700; letter-spacing:.18em; color:#FF8484; }
+.b-live::before { content:''; width:10px; height:10px; border-radius:50%; background:#FF4242;
+                  box-shadow:0 0 14px rgba(255,66,66,.85); }
+.b-mark { font-size:30px; font-weight:900; letter-spacing:.20em; color:#34D399; margin-bottom:10px;
+          text-shadow:0 0 16px rgba(52,211,153,.55); }
+.b-tag  { font-size:18px; letter-spacing:.20em; color:#7c98c8; text-transform:uppercase; margin-bottom:16px; }
+.b-tag-bt, .b-tag-rf { font-size:80px; font-weight:900; letter-spacing:.06em; padding:0 28px;
+                       border-radius:20px; display:inline-block; }
+.b-tag-bt { color:#3DA9FF; background:linear-gradient(160deg, rgba(61,169,255,.22), rgba(61,169,255,.04));
+            border:1.5px solid rgba(61,169,255,.5); text-shadow:0 0 24px rgba(61,169,255,.55); }
+.b-tag-rf { color:#FF9C3D; background:linear-gradient(160deg, rgba(255,156,61,.22), rgba(255,156,61,.04));
+            border:1.5px solid rgba(255,156,61,.5); text-shadow:0 0 24px rgba(255,156,61,.55); }
+.b-title-row { display:flex; align-items:center; gap:22px; margin-bottom:18px; }
+.b-plus  { font-size:60px; font-weight:300; color:#7c98c8; }
+.b-chip  { margin-top:18px; padding:10px 22px; border-radius:32px; font-size:20px; font-weight:700;
+           letter-spacing:.08em; color:#FFD96A; background:rgba(255,217,106,.10);
+           border:1px solid rgba(255,217,106,.4); }
+.b-cust-row { display:flex; align-items:center; gap:30px; margin-bottom:22px; }
+.b-avatar { width:96px; height:96px; border-radius:50%; display:flex; align-items:center;
+            justify-content:center; font-size:44px; font-weight:900; color:#fff; flex-shrink:0; }
+.b-avatar.gold { background:linear-gradient(160deg,#FFD96A,#C49230);
+                 box-shadow:0 0 26px rgba(255,217,106,.45); }
+.b-bubble { padding:22px 30px; border-radius:22px; background:rgba(20,28,52,.92);
+            border:1px solid rgba(130,190,255,.32); font-size:30px; font-weight:600;
+            max-width:580px; line-height:1.4; }
+.b-meta { font-size:22px; color:#B5C2DC; letter-spacing:.08em; }     /* 提亮 #8FA0BE→#B5C2DC（CR=1.62→OK 区间） */
+.b-tiles { display:flex; gap:36px; }
+.b-tile  { width:380px; padding:42px 36px; border-radius:22px; display:flex; flex-direction:column;
+           align-items:center; gap:18px; }
+.b-tile.blue   { background:linear-gradient(160deg, rgba(61,169,255,.18), rgba(20,30,60,.92));
+                 border:1.5px solid rgba(61,169,255,.45); }
+.b-tile.orange { background:linear-gradient(160deg, rgba(255,156,61,.18), rgba(30,20,15,.92));
+                 border:1.5px solid rgba(255,156,61,.45); }
+.b-icon { width:84px; height:84px; border-radius:18px; display:flex; align-items:center;
+          justify-content:center; font-size:42px; font-weight:900; }
+.b-tile.blue .b-icon   { background:rgba(61,169,255,.32);  color:#3DA9FF;
+                          box-shadow:0 0 18px rgba(61,169,255,.5); }
+.b-tile.orange .b-icon { background:rgba(255,156,61,.32);  color:#FF9C3D;
+                          box-shadow:0 0 18px rgba(255,156,61,.5); }
+.b-tile.blue .b-name   { color:#3DA9FF; }
+.b-tile.orange .b-name { color:#FF9C3D; }
+.b-name  { font-size:42px; font-weight:800; }
+.b-eng   { font-size:17px; letter-spacing:.18em; color:#B5C2DC; text-transform:uppercase; } /* 原 #8FA0BE 违反深底小字铁律，已提亮 */
+.b-cap-list { display:flex; flex-direction:column; gap:18px; width:84%; }
+.b-cap  { display:flex; align-items:center; gap:20px; padding:20px 30px; border-radius:16px;
+          background:rgba(61,169,255,.06); border:1px solid rgba(61,169,255,.22); }
+.b-num  { font-size:22px; color:#5fa8ff; font-weight:900; letter-spacing:.10em; }
+.b-cap .b-name { color:#EAF2FF; font-size:38px; font-weight:700; }
+.b-net  { width:100%; height:100%; max-height:560px; display:block; }
+.b-net-line { stroke:rgba(52,211,153,.55); stroke-width:2; stroke-dasharray:8 8; fill:none; }
+.b-net-hub  { fill:#34D399; stroke:rgba(52,211,153,.3); stroke-width:6;
+              filter:drop-shadow(0 0 18px rgba(52,211,153,.7)); }
+.b-net-node { fill:#1F2A4E; stroke:#34D399; stroke-width:3; }
+.b-net-text { fill:#EAF2FF; font-size:24px; font-weight:700; text-anchor:middle;
+              font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+.b-net-hub-text { fill:#0a1a10; font-size:30px; font-weight:900; text-anchor:middle; }
+.b-net-cap { margin-top:14px; font-size:22px; color:#34D399; letter-spacing:.12em; font-weight:700; }
+.b-logo-mark { font-size:44px; font-weight:900; letter-spacing:.14em; color:#0a1a10;
+               background:linear-gradient(135deg,#34D399,#10b981); padding:14px 32px;
+               border-radius:18px; margin-bottom:20px;
+               box-shadow:0 0 32px rgba(52,211,153,.55); display:inline-block; }
+
+/* ============================ 3D 场景自带装饰 ============================ */
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="screen">
+    <div id="viewport">
+      <div id="camera">
+        <div id="world">
+{{LAYERS_HTML}}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="overlays"></div>
+</div>
+
+<script>
+/* =============================================================================
+ * {{PROJECT_NAME}} · 3D 摄影机工程（由 new_project.js --mode 3d 生成）
+ *
+ * 铁律：
+ *   1. 禁止 CSS animation / transition / @keyframes —— 一切由 __frame(t) 纯函数驱动
+ *   2. t 单位 = 秒；同一 t 必须产出完全相同的状态（确定性渲染 / 可任意 seek）
+ *   3. 内容不得超出安全框 ({{SAFE_X0}},{{SAFE_Y0}})-({{SAFE_X1}},{{SAFE_Y1}})
+ *   4. 显隐只写在 .card（叶子）；.layer / #camera / #world 上禁止 opacity 与 filter
+ * ========================================================================== */
+
+/* ============================== 运行时 ============================== */
+{{CAMERA3D_JS}}
+{{CAMERA_LENS_JS}}
+{{CAMERA_SHOTS_JS}}
+{{RUNTIME_JS}}
+
+/* ============================== 规格锁 ============================== */
+const CFG  = {{CONFIG_JSON}};
+const DUR  = CFG.dur;                    /* 审计脚本靠抓 const DUR 拿时长，别删 */
+const SAFE = CFG.safe;
+/* HUD 层专用安全带（规格锁 §2.1：HUD 住 y[36,140]）。
+   ⚠️ 缺省回落——老工程（如 seg8）没声明 hudSafe、也没有 data-hud 元素，
+      命中不了的路径不改变任何行为（收窄语义必须先保证老工程回归不变）。 */
+const HUD_SAFE = CFG.hudSafe || { y0: 36, y1: 140 };
+const LAYERS = {{LAYERS_JSON}};
+const CAMTRACK = {{CAMTRACK_JSON}};
+
+const FX = window.FX, CAM3D = window.CAM3D, CAMLENS = window.CAMLENS;
+const W = CFG.w, H = CFG.h;
+const $ = (id) => document.getElementById(id);
+const $vp = $('viewport'), $cam = $('camera'), $world = $('world');
+const $screen = $('screen'), $ov = $('overlays');
+
+/* ============================== 镜头 / 胶片 ============================== */
+const LENS = CAMLENS.LENSES[CFG.lens] || CAMLENS.LENSES['35-street'];
+const BASE_ZOOM = CAM3D.focalToZoom(LENS.focal, W, CFG.filmW || 36);
+/* 光圈 → 景深：F 值越小景深越浅。aperture 是 CSS 假景深的比例尺，不是 F 值本身 */
+const APERTURE = CFG.aperture || (140 + LENS.fstop * 90);
+const MAXBLUR  = CFG.maxBlur || 11;
+
+/* 胶片：SVG filter 注入 body → 挂在 #screen（2D 包装层，绝不能挂 3D 链上） */
+CAMLENS.injectSVG([CFG.film, 'digital-clean']);
+CAMLENS.applyFilm($screen, CFG.film, CFG.filmStrength == null ? 1 : CFG.filmStrength);
+/* ★ `CFG.lensVignette === false` → 不建 `.lens-vignette` 层。
+   跨段统一时用：前一段若用手写 `#vig` 提供暗角，本段必须关掉这层，否则双重压暗（实测 4.5 灰阶）。 */
+CAMLENS.buildOverlays($ov, CFG.film, {
+  anamorphic: CFG.lens === '40-anamorphic',
+  vignette: CFG.lensVignette !== false,
+});
+
+/* ============================== 图层挂载 ============================== */
+/* LAYERS[i] 由分镜表生成；每个 layer 的 card 节点在 __frame 里按 tIn/tOut 驱动 */
+const L_EL = [], C_EL = [];
+(function mountLayers() {
+  for (let i = 0; i < LAYERS.length; i++) {
+    const L = LAYERS[i];
+    const el = $('layer-' + L.id);
+    if (!el) continue;
+    const card = el.querySelector('.card') || el.firstElementChild;
+    el.style.transform =
+      'translate3d(' + (L.x || 0) + 'px,' + (L.y || 0) + 'px,' + (L.z || 0) + 'px)' +
+      (L.rx ? ' rotateX(' + L.rx + 'deg)' : '') +
+      (L.ry ? ' rotateY(' + L.ry + 'deg)' : '') +
+      (L.rz ? ' rotateZ(' + L.rz + 'deg)' : '');
+    L_EL[i] = el; C_EL[i] = card;
+  }
+})();
+
+/* ============================== 图层显隐（自动生成，一般不用改） ==============================
+ * 每个 layer 的 tIn/tOut 由分镜表算出：tIn = shot.t0 + (layer.in||0)，tOut = shot.t1 + (layer.out||0)
+ * 底板类图层（floor/back/pool，layer.fixed）常驻，不受窗口控制。
+ * ==================================================================== */
+/**
+ * ★ 元素级动效（老板点名要的"元素的放大变化"）
+ * 原来只做 0.955→1 的单调爬升，观感就是"淡入"，没有重量也没有惯性。
+ * 现在三件套：
+ *   pop     入场 overshoot —— 用 back-out 让 scale 冲过 1 再回落（settle）
+ *   breathe 常驻呼吸 —— ±0.5% 慢正弦，静止的卡片才是"死"的
+ *   drift/sway 慢漂移 + 微摆动 —— 抵消"贴死在坐标上"的僵硬
+ */
+function baseTransform(L, k, e, t) {
+  const dz = L.popZ == null ? 90 : L.popZ;
+  const rise = L.rise == null ? 26 : L.rise;
+
+  // pop：scale 从 (1-pop) 用 back-out 弹到 1，中途冲过 1 再回落
+  const pop = L.pop == null ? 0.10 : L.pop;
+  let sc = (1 - pop) + pop * CAM3D.bo(e, 2.2);
+
+  if (L.breathe) sc *= 1 + L.breathe * Math.sin(t * Math.PI * 2 * (L.breathHz || 0.35));
+  if (k < 1) sc *= 0.96 + 0.04 * k;                       /* 退场微缩，别硬切 */
+  const dy = L.drift ? L.drift * Math.sin(t * Math.PI * 2 * (L.driftHz || 0.22)) : 0;
+  const rz = L.sway  ? L.sway  * Math.sin(t * Math.PI * 2 * (L.swayHz  || 0.17)) : 0;
+
+  return 'translate(-50%,-50%)' +
+         ' translate3d(0,' + ((1 - e) * rise + dy).toFixed(2) + 'px,' +
+                              ((1 - e) * -dz).toFixed(2) + 'px)' +
+         ' rotateZ(' + rz.toFixed(3) + 'deg)' +
+         ' scale(' + sc.toFixed(4) + ')';
+}
+
+/**
+ * ★ 子元素错峰（12 原则之 follow through & overlapping action）
+ * 卡片里的一排元素同时出现 = 机器人；每个晚 60~90ms = 有节奏。
+ * 惰性收集：第一次跑到才抓子元素，不影响初始化。
+ */
+function driveStagger(L, card, t) {
+  if (!L.stagger) return;
+  if (!L.__kids) {
+    let c = card;
+    // 生成结构是 card > .b-card > 若干条目；只套了一层壳就往里钻一层，
+    // 否则 .b-card 作为唯一子元素根本没法错峰。
+    if (c.children.length === 1 && c.firstElementChild.children.length > 1) c = c.firstElementChild;
+    L.__kids = Array.prototype.slice.call(c.children);
+  }
+  const kids = L.__kids;
+  const gap = L.staggerGap == null ? 0.075 : L.staggerGap;
+  const rise = L.staggerRise == null ? 18 : L.staggerRise;
+  for (let j = 0; j < kids.length; j++) {
+    const e = CAM3D.ease('bo', Math.max(0, Math.min(1, (t - L.tIn - j * gap) / 0.5)));
+    const el = kids[j];
+    el.style.opacity = (0.001 + 0.999 * e).toFixed(4);
+    el.style.transform = 'translate3d(0,' + ((1 - e) * rise).toFixed(2) + 'px,0)' +
+                         ' scale(' + (0.94 + 0.06 * e).toFixed(4) + ')';
+  }
+}
+
+function driveLayers(t) {
+  for (let i = 0; i < LAYERS.length; i++) {
+    const L = LAYERS[i], card = C_EL[i];
+    if (!card) continue;
+    if (L.fixed) { card.style.opacity = L.op == null ? 1 : L.op; card.style.transform = 'translate(-50%,-50%)'; continue; }
+    const dIn = L.dIn == null ? 0.38 : L.dIn, dOut = L.dOut == null ? 0.30 : L.dOut;
+    const k = FX.env(t, L.tIn, L.tOut, dIn, dOut);
+    const e = FX.eob(FX.c1(t, L.tIn, 0.55));
+    card.style.opacity = (k * (L.op == null ? 1 : L.op)).toFixed(4);
+    card.style.transform = baseTransform(L, k, e, t);
+    if (L.follow) card.style.transform = 'translate(-50%,-50%)';   /* 跟随摄影机的 HUD 类 */
+    driveStagger(L, card, t);
+  }
+}
+
+/* ============================== 景深 ==============================
+ * 按「摄影机到图层距离 vs 对焦距离」给 card 加 blur。
+ * ⚠️ dof 写的是 filter，会拍平 card 的子元素 —— card 本来就是叶子，OK。
+ * ==================================================================== */
+function driveDof(cam, t) {
+  if (!CFG.dof) return;
+  const focus = cam.focus || CAM3D.dist(cam, cam.px, cam.py, cam.pz);
+  for (let i = 0; i < LAYERS.length; i++) {
+    const L = LAYERS[i], card = C_EL[i];
+    if (!card || L.noDof) continue;
+    const d = CAM3D.dist(cam, L.x || 0, L.y || 0, L.z || 0);
+    CAM3D.dof(card, d, focus, APERTURE, MAXBLUR);
+  }
+}
+
+/* ============================== 安全框自检 ==============================
+ * 3D 投影后 getBoundingClientRect 拿到的就是屏幕矩形，越界照样能抓。
+ *
+ * ★ 两条实测踩出来的口径（2026-09-15，uvc-seg9）：
+ *   ① **HUD 层有它自己的带**。规格锁 §2.1：HUD 层住 y[36,140]。
+ *      拿正文的 y[80,880] 去判 HUD ⇒ **它天生就"越界"**，报出来的是假警报，
+ *      而且那条 FAIL 看上去跟真越界一模一样（"pillHud 越安全框"）。
+ *      判据 = 沿祖先链找 `[data-hud="1"]`（HUD 是"一条带"，声明在容器上、
+ *      必须覆盖其内容），命中则纵向换 HUD 带、**横向仍守 x[80,1840]**。
+ *   ② **不许按 bad 集合去重到只剩 1 条**。首版 `key === _oobSeen` 直接 return，
+ *      于是「连续 310 帧全越界」被压成「1 条」——静默少报，比假警报更毒
+ *      （人看到"只有 1 条"会直接放行）。正解：同 key 续段只**累加**，
+ *      记录 t0/t1/n，收尾一看就知道是"一瞬"还是"全程"。
+ * ==================================================================== */
+let _oobSeen = '';
+function selfCheck(t) {
+  const els = document.querySelectorAll('[data-safe]');
+  const bad = [];
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    let op = 1, n = el;
+    while (n && n !== document.documentElement) { op *= parseFloat(getComputedStyle(n).opacity); n = n.parentElement; }
+    if (op < 0.35) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const hud = !!(el.closest && el.closest('[data-hud="1"]'));
+    const top = hud ? HUD_SAFE.y0 : SAFE.y0, bot = hud ? HUD_SAFE.y1 : SAFE.y1;
+    if (r.left < SAFE.x0 - 1 || r.top < top - 1 || r.right > SAFE.x1 + 1 || r.bottom > bot + 1) {
+      bad.push(el.id || el.className || el.tagName);
+    }
+  }
+  window.__oob = window.__oob || [];
+  if (!bad.length) { _oobSeen = ''; return; }        // 复位：下次越界要新开一条
+  const key = bad.join('|');
+  const last = window.__oob[window.__oob.length - 1];
+  if (key === _oobSeen && last) {                    // 续段：累加，不新增
+    last.t1 = +t.toFixed(3); last.n++;
+    return;
+  }
+  _oobSeen = key;
+  if (window.__oob.length < 50) window.__oob.push({ t: +t.toFixed(3), t1: +t.toFixed(3), n: 1, els: bad });
+}
+
+/* ============================== 背面朝向自检 ==============================
+ * ★ 2026-09-17 真抓到的 bug（rv1106-seg1）：S5 标题图层写 `rx:-76`，而相机在**上方**俯视
+ *   ⇒ 平面法向朝下 ⇒ 观众看到的是**背面** ⇒ 平面上的文字**必然左右镜像**。
+ *   当时 11 组相机判据**全绿**也没拦住 —— 它们量的全是"相机怎么动"，
+ *   **没有一条在问"看到的是哪一面"**。判据的覆盖面 = 它问过的问题，不是它跑过的次数。
+ *
+ * 口径（纯解析，不读 DOM —— DOM 那条链要处理 transform-origin + perspective，容易写错，
+ *   错了还会读出"看起来完全合理"的数）：
+ *   CSS 变换 = translate3d(x,y,z)·Rx(rx)·Ry(ry)·Rz(rz)
+ *   局部法向 (0,0,1) ⇒ 世界法向 n = (sin ry, −cos ry·sin rx, cos ry·cos rx)   ★ 与 rz 无关
+ *   `.layer` 是 0×0 容器 ⇒ 它的原点就是世界锚点。
+ *   判据 = cos∠(相机−锚点, n)：< 0 就是背面。
+ *
+ * **只记录 + 首帧 warn，绝不改画面** —— 修正朝向是作者的活，判据只负责
+ * 让它**不可能静默发生**。探针读 `window.__backface` 拿最差值。
+ * ======================================================================== */
+function driveFaceCheck(cam, t) {
+  window.__backface = window.__backface || {};
+  for (let i = 0; i < LAYERS.length; i++) {
+    const L = LAYERS[i];
+    if (!L.rx && !L.ry) continue;          /* 无旋转 ⇒ 法向恒为 +z，一路顺相机，不用算 */
+    const rx = L.rx * Math.PI / 180, ry = L.ry * Math.PI / 180;
+    const n = [Math.sin(ry), -Math.cos(ry) * Math.sin(rx), Math.cos(ry) * Math.cos(rx)];
+    const v = [cam.x - (L.x || 0), cam.y - (L.y || 0), cam.z - (L.z || 0)];
+    const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1;
+    const c = (v[0] * n[0] + v[1] * n[1] + v[2] * n[2]) / len;
+    const r = window.__backface[L.id] ||
+              (window.__backface[L.id] = { id: L.id, worst: 9, at: null, backFrames: 0 });
+    if (c < r.worst) { r.worst = +c.toFixed(4); r.at = +t.toFixed(3); }
+    if (c < 0) {
+      r.backFrames++;
+      if (!r.warned) {
+        r.warned = true;
+        console.warn('[backface] 图层 "' + L.id + '" 在 t=' + t.toFixed(2) +
+          's 朝向相机的是**背面**（cos=' + c.toFixed(3) + '）—— 该层若有文字，画面里必然是镜像的。' +
+          '检查 spec 里这一层的 rx/ry 符号。');
+      }
+    }
+  }
+}
+
+/* ============================== 帧驱动 ============================== */
+window.__frame = function (t) {
+  t = (t < 0 ? 0 : (t > DUR ? DUR : t));
+
+  /* ---- ① 摄影机就位 ---- */
+  let cam = CAM3D.sample(CAMTRACK, t);
+  if (CFG.shake) {
+    const sh = CAM3D.shake(t, CFG.shake.amp, CFG.shake.freq || 1.7);
+    cam = { x: cam.x + sh.x, y: cam.y + sh.y, z: cam.z,
+            px: cam.px, py: cam.py, pz: cam.pz,
+            zoom: cam.zoom, roll: cam.roll + sh.roll, focus: cam.focus };
+  }
+  CAM3D.apply($vp, $cam, cam);
+
+  /* ---- ② 图层显隐 + 景深 ---- */
+  driveLayers(t);
+  driveDof(cam, t);
+
+  /* ---- ③ 逐镜自定义驱动 ---- */
+{{SHOT_DRIVE}}
+
+  /* ---- ④ 颗粒沸腾 / 拉丝呼吸 ---- */
+  CAMLENS.tickOverlays($ov, t, CFG.fps);
+
+  /* ---- ⑤ 安全框自检 ---- */
+  selfCheck(t);
+
+  /* ---- ⑥ 背面朝向自检（只 warn，不改画面） ---- */
+  driveFaceCheck(cam, t);
+};
+
+/* ============================== 渲染器契约 ============================== */
+window.getInfo = function () {
+  return { width: CFG.w, height: CFG.h, fps: CFG.fps, numberOfFrames: Math.round(CFG.dur * CFG.fps) };
+};
+window.__dur = DUR;
+window.__frame(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+{
+  "name": "demo",
+  "title": "demo · 语音转动画工程骨架样例",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "dur": 12.0,
+  "bg": "radial-gradient(120% 90% at 50% 0%, #0d1220 0%, #06080c 55%, #04060a 100%)",
+  "glow": "radial-gradient(60% 52% at 50% 28%, rgba(53,224,208,.16) 0%, rgba(0,0,0,0) 72%)",
+  "safe": { "x0": 52, "y0": 70, "x1": 1872, "y1": 1008 },
+  "type": { "size": 72, "color": "#E8F1FF", "weight": 700 },
+  "shots": [
+    {
+      "shot": 1,
+      "asr": [0.00, 3.20],
+      "narration": "这块板子最大的不同，是它能自己点亮一块 VGA 屏幕。",
+      "voice_kw": "VGA 屏幕",
+      "subject": "标题卡 + 板卡剪影",
+      "layers": ["bg", "board", "text", "fx"],
+      "enter": "fadeUp",
+      "exit": "scaleOut",
+      "cam": "creep",
+      "cam_amp": 0.08,
+      "cam_ease": "linear",
+      "camkeys": [
+        { "t": 0.00, "x": 960, "y": 540, "z": 1.00 },
+        { "t": 3.20, "x": 960, "y": 520, "z": 1.08 }
+      ],
+      "depth": 10,
+      "safe": "title",
+      "type": { "size": 72, "color": "#E8F1FF", "weight": 700 },
+      "sfx": [0.00, "riser"],
+      "accept": "标题居中不压字幕条，板卡剪影落在画面下三分之一"
+    },
+    {
+      "shot": 2,
+      "asr": [3.20, 6.10],
+      "narration": "它把 CPU、内存和显示控制器，全塞进了一颗芯片里。",
+      "voice_kw": "一颗芯片",
+      "subject": "芯片卡 + 两行参数",
+      "layers": ["bg", "chip", "text", "fx"],
+      "enter": "fadeUp",
+      "exit": "fadeDown",
+      "cam": "pan",
+      "cam_amp": 0.12,
+      "cam_ease": "easeOutExpo",
+      "camkeys": [
+        { "t": 3.20, "x": 960, "y": 520, "z": 1.08 },
+        { "t": 6.10, "x": 1040, "y": 540, "z": 1.10 }
+      ],
+      "depth": 20,
+      "safe": "action",
+      "type": { "size": 56, "color": "#E8F1FF", "weight": 700 },
+      "sfx": [3.18, "whoosh"],
+      "accept": "芯片居中，两行参数不压字幕条"
+    },
+    {
+      "shot": 3,
+      "asr": [6.10, 9.00],
+      "narration": "关键是这一路 RGB 信号，它必须逐像素实时送出去。",
+      "voice_kw": "逐像素实时",
+      "subject": "RGB 波形 + 数据流动线",
+      "layers": ["bg", "wave", "chip", "fx"],
+      "enter": "popIn",
+      "exit": "fadeOut",
+      "cam": "punchIn",
+      "cam_amp": 0.15,
+      "cam_ease": "easeOutExpo",
+      "camkeys": [
+        { "t": 6.10, "x": 1040, "y": 540, "z": 1.10 },
+        { "t": 6.34, "x": 960, "y": 540, "z": 1.16 },
+        { "t": 9.00, "x": 960, "y": 540, "z": 1.12 }
+      ],
+      "depth": 30,
+      "safe": "action",
+      "type": { "size": 44, "color": "#7cfff0", "weight": 700 },
+      "sfx": [6.10, "punch"],
+      "accept": "波形峰值不出安全框，数据流方向朝右不回头"
+    },
+    {
+      "shot": 4,
+      "asr": [9.00, 11.60],
+      "narration": "所以它没有显存，靠的就是这一股不间断的时序。",
+      "voice_kw": "没有显存",
+      "subject": "时序条 + 结论文字",
+      "layers": ["bg", "bar", "text"],
+      "enter": "fadeUp",
+      "exit": "scaleOut",
+      "cam": "dollyIn",
+      "cam_amp": 0.10,
+      "cam_ease": "easeOutCubic",
+      "camkeys": [
+        { "t": 9.00, "x": 960, "y": 540, "z": 1.12 },
+        { "t": 11.60, "x": 960, "y": 540, "z": 1.02 }
+      ],
+      "depth": 10,
+      "safe": "title",
+      "type": { "size": 60, "color": "#E8F1FF", "weight": 700 },
+      "sfx": [11.50, "outro"],
+      "accept": "落版回到全景，时序条水平居中且底边 ≤900"
+    }
+  ]
+}

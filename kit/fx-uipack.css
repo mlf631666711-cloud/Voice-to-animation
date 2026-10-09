@@ -1,0 +1,303 @@
+/* ==========================================================================
+ * fx-uipack.css —— UI 风 MG 组件样式（配 fx-uipack.js 的 window.UIP 驱动）
+ * 分段可摘，段间零耦合；全部静态样式（动效一律由 __frame(t) 驱动）
+ * ========================================================================== */
+
+/* ===== ui-fb conic 流光边框（UIP.flowBorder 驱动 --ang） ===== */
+.ui-fb{position:absolute;inset:-2px;border-radius:inherit;padding:2px;opacity:0;pointer-events:none;
+  background:conic-gradient(from var(--ang,0deg),#3DA9FF,#7d5bff,#FF9C3D,#34D399,#3DA9FF);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude}
+
+/* ===== ui-panel 应用窗口面板（chrome 三点 + 面包屑） ===== */
+.ui-panel{position:absolute;background:#121A2E;border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.ui-chrome{display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
+.ui-chrome i{width:11px;height:11px;border-radius:50%}
+.ui-chrome i:nth-child(1){background:#FF5F57}.ui-chrome i:nth-child(2){background:#FEBC2E}.ui-chrome i:nth-child(3){background:#28C840}
+.ui-crumb{margin-left:10px;font-size:15px;letter-spacing:1px;color:#8B96B5}
+
+/* ===== ui-chip 标签胶囊 ===== */
+.ui-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);
+  font-size:17px;letter-spacing:1px;color:#C9D4F2}
+
+/* ===== ui-toast 系统通知横幅（UIP.toast 驱动） ===== */
+/* ⚠ 居中用 left/right+margin:auto，禁 translateX(-50%)（transform 由 UIP.toast 驱动） */
+.ui-toast{position:absolute;left:0;right:0;margin:0 auto;width:max-content;top:0;display:flex;align-items:center;gap:14px;
+  padding:16px 28px;border-radius:16px;background:rgba(18,26,46,.92);border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 18px 44px rgba(0,0,0,.5);opacity:0;white-space:nowrap}
+.ui-toast .ok{width:26px;height:26px;border-radius:50%;background:#34D399;display:flex;align-items:center;justify-content:center;
+  color:#06281B;font-weight:900;font-size:15px}
+
+/* ===== ui-dots IM 输入中三点（UIP.typing 驱动子元素位移） ===== */
+.ui-dots{display:inline-flex;gap:7px;align-items:flex-end;height:22px}
+.ui-dots i{width:9px;height:9px;border-radius:50%;background:#8B96B5;display:block}
+
+/* ===== ui-row 能力清单行（checkbox + 文本） ===== */
+.ui-row{position:relative;display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:14px;
+  border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);opacity:0}
+.ui-row .cb{width:30px;height:30px;border-radius:9px;border:2px solid rgba(255,255,255,.25);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.ui-row .cb svg{width:20px;height:20px}
+.ui-row .cb path{stroke:#34D399;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ui-row b{font-size:24px;letter-spacing:2px;color:#F4F7FF;font-weight:700}
+.ui-row small{font-size:13px;letter-spacing:1.5px;color:#8B96B5;margin-left:auto}
+
+/* ===== ui-node 拓扑节点（中心主机 / 子设备） ===== */
+.ui-node{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 35% 30%,#1B2947,#0F1730);border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);color:#F4F7FF;font-weight:700;opacity:0}
+.ui-node.hot{border-color:rgba(255,156,61,.65);box-shadow:0 0 34px rgba(255,156,61,.35),0 10px 30px rgba(0,0,0,.5)}
+
+/* ===== ui-avatar 主讲人/客户头像圆环 ===== */
+.ui-avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:900;color:#fff;letter-spacing:0}
+
+/* ===== ui-badge LIVE/汇报中徽标（UIP.breathe 驱动） ===== */
+.ui-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;
+  background:rgba(255,95,87,.14);border:1px solid rgba(255,95,87,.4);color:#FF8A80;
+  font-size:13px;letter-spacing:2px;font-weight:700}
+.ui-badge i{width:8px;height:8px;border-radius:50%;background:#FF5F57;display:block}
+
+/* ==========================================================================
+ * 后期覆盖层 fx-post-*（整画面一次性叠加，可任意组合）
+ * --------------------------------------------------------------------------
+ * 来源：Remotion 官方 @remotion/effects 同名效果的 CSS/SVG 等价实现。
+ *   ⚠️ @remotion/effects 的 npm license = UNLICENSED
+ *   → 本段只抄「效果清单 + 设计思想」，全部自己用 CSS/SVG 重写，
+ *     零依赖、零 React、零官方代码。这是唯一合规路径。
+ *
+ * 统一契约（15 个层全部遵守）：
+ *   - 必须是 .fx-post 基类 + 具体效果类，如 class="fx-post fx-post-noise"
+ *   - 只吃 CSS 变量 --op（层透明度，默认值各层自定）
+ *   - 全部 pointer-events:none，可整层丢在内容之上当"摄影机滤镜"
+ *   - 定位由 .fx-post 提供（absolute inset:0），具体效果类只画纹理
+ *   - 不参与元素动效；透明度需变化时由 __frame(t) 写 style.opacity
+ *
+ * ⚠️ 硬约束：本段禁出现 CSS animation / transition（全 JS __frame(t) 纯函数）。
+ * ========================================================================== */
+
+/* ---- 基类：所有后期层共用（position + 事件穿透） ---- */
+.fx-post{position:absolute;inset:0;pointer-events:none}
+
+/* ===== 1. vignette 暗角（摄影机镜头衰减） ===== */
+/* ⚠️ 观感调参（09-13）：初版在中灰底上看不见 —— 收紧到 62% 起衰减 + 加深外圈 */
+.fx-post-vignette{opacity:var(--op,.72);
+  background:radial-gradient(ellipse 64% 58% at 50% 50%,
+    rgba(0,0,0,0) 26%, rgba(0,0,0,.38) 62%, rgba(0,0,0,.78) 92%, rgba(0,0,0,.92) 100%)}
+
+/* ===== 2. scanlines 扫描线（CRT 电视质感） ===== */
+/* ⚠️ 观感调参：1px 线在 1080p 直接消失 → 2px 实线 + 4px 间隔 + 提不透明度 */
+.fx-post-scanlines{opacity:var(--op,.55);
+  background:repeating-linear-gradient(180deg,
+    rgba(0,0,0,.72) 0 2px, transparent 2px 6px)}
+
+/* ===== 3. gridlines 技术网格（工程/示波器底纹） ===== */
+/* 肉眼审判修正：主线太抢主体 → 主/次线对比拉开，主线降一档 */
+.fx-post-gridlines{opacity:var(--op,.85);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.16) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(180deg, rgba(255,255,255,.16) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(90deg, rgba(120,190,255,.28) 0 1px, transparent 1px 220px),
+    repeating-linear-gradient(180deg, rgba(120,190,255,.28) 0 1px, transparent 1px 220px)}
+
+/* ===== 4. lightLeak 光漏（胶片漏光，暖橙斜射） ===== */
+/* MAE 4.94 偏弱 → 提高峰值 + 扩大覆盖 */
+.fx-post-lightleak{opacity:var(--op,.85);mix-blend-mode:screen;
+  background:radial-gradient(ellipse 78% 86% at 88% 12%,
+    rgba(255,196,120,.82) 0%, rgba(255,150,90,.42) 34%, rgba(255,110,70,.16) 58%, transparent 78%)}
+
+/* ===== 5. noise 颗粒（程序化噪点，替代伪 grain 点阵） ===== */
+/* 🔴 肉眼审判修正（09-13 第二轮）：4px 块 + overlay 在 1x 下呈「编织袋」布纹，
+   不是胶片颗粒。真颗粒要**尺寸小于像素可分辨尺度**才有随机感。
+   改法：降到 2px 块（亚可分辨）+ 提高频率 + 降不透明度，让它在放大时是颗粒、
+   在 1x 时是均匀的微噪。 */
+.fx-post-noise{opacity:var(--op,.22);
+  background-image:
+    repeating-conic-gradient(rgba(255,255,255,.95) 0% 25%, rgba(0,0,0,.95) 25% 50%),
+    repeating-conic-gradient(rgba(255,255,255,.85) 0% 25%, transparent 25% 50%);
+  background-size:2px 2px, 2px 2px;
+  background-position:0 0, 1px 1px;
+  mix-blend-mode:overlay}
+
+/* ===== 6. paper 纸纹（哑光纤维，适合浅底/文档场景） ===== */
+/* 观感可接受，微调：纤维再细一点避免"格子感" */
+.fx-post-paper{opacity:var(--op,.42);mix-blend-mode:multiply;
+  background-image:
+    repeating-linear-gradient(48deg, rgba(110,100,80,.20) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(-36deg, rgba(140,128,106,.16) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(6deg, rgba(80,74,60,.12) 0 2px, transparent 2px 9px)}
+
+/* ===== 7. halftone 半调网点（印刷质感，密度可调） ===== */
+/* 🔴 肉眼审判修正（09-13 第二轮）：11px 网点 + 40% 点径 → 盖成"波点布"，
+   完全不是半调（半调是**细密均匀**的网点，近距离才看得出）。
+   改法：网点降到 5px、点径收到 26%，密度上去了才是"印刷网屏"。 */
+.fx-post-halftone{opacity:var(--op,.40);
+  background-image:radial-gradient(rgba(0,0,0,.78) 26%, transparent 28%);
+  background-size:5px 5px;
+  background-position:0 0}
+
+/* ===== 8. dotGrid 点阵（浅色科技底，比 gridlines 更柔） ===== */
+/* 🔴 肉眼审判修正（09-13 第二轮）：3.4px 点 + 30px 间距 → 大圆点像"波点"，
+   失去科技感。真点阵是**小而密**。改法：点径 1.6px、间距 22px。 */
+.fx-post-dotgrid{opacity:var(--op,.55);
+  background-image:radial-gradient(rgba(255,255,255,.60) 1.6px, transparent 2px);
+  background-size:22px 22px;
+  background-position:11px 11px}
+
+/* ===== 9. thermalVision 热成像（伪彩，用于数据/温度叙事） ===== */
+/* ⚠️ 观感调参：color 混合在中灰底上几乎无效果 → 改 screen + 提高不透明度 */
+.fx-post-thermal{opacity:var(--op,.55);mix-blend-mode:screen;
+  background:linear-gradient(135deg,
+    rgba(0,60,255,.72) 0%, rgba(0,200,190,.50) 26%,
+    rgba(240,220,60,.44) 52%, rgba(255,110,40,.48) 76%, rgba(200,20,120,.58) 100%)}
+
+/* ===== 10. duotone 双色调（高光→暖、暗部→冷，最通用的调色层） ===== */
+/* ⚠️ 观感调参：单靠 color 混合太糊（中灰底上等于没变）→ 双层叠加：
+       color 提供色相偏移 + soft-light 提供明暗结构 */
+.fx-post-duotone{opacity:var(--op,.62)}
+.fx-post-duotone::before,.fx-post-duotone::after{content:"";position:absolute;inset:0}
+.fx-post-duotone::before{mix-blend-mode:color;
+  background:linear-gradient(160deg, #1b3a8c 0%, #2f6fd0 38%, #b98a4e 72%, #f0c27b 100%)}
+.fx-post-duotone::after{mix-blend-mode:soft-light;opacity:.75;
+  background:linear-gradient(160deg, #0a1430 0%, #5a7fd0 40%, #d8a86a 70%, #fff0c8 100%)}
+
+/* ===== 11. lightSweepPost 光扫（一次性斜向扫过整屏，做章节切换） ===== */
+/* ⚠️ 观感调参：0.34 白峰值在全屏上仍偏弱 → 提到 0.52 并加宽亮带 */
+.fx-post-lightsweep{opacity:var(--op,0);mix-blend-mode:screen;
+  background:linear-gradient(102deg,
+    transparent 40%, rgba(255,255,255,.10) 46%, rgba(255,255,255,.52) 50%,
+    rgba(255,255,255,.10) 54%, transparent 60%);
+  background-size:260% 100%;
+  background-position:100% 0}
+
+/* ===== 12. chromaFringe 色散边缘（镜头色差，轻微做旧） ===== */
+/* MAE 1.75 偏弱 → 提高峰值、加宽覆盖，并让左右分离更明确 */
+.fx-post-chromafringe{opacity:var(--op,.85);mix-blend-mode:screen;
+  background:
+    radial-gradient(ellipse 78% 110% at 0% 50%, rgba(255,50,50,.62) 0%, transparent 42%),
+    radial-gradient(ellipse 78% 110% at 100% 50%, rgba(50,130,255,.62) 0%, transparent 42%)}
+
+/* ===== 13. rings 同心环（雷达/信号，Generate 类） ===== */
+/* 🔴 肉眼审判修正（09-13 第二轮）：3px 环 + .62 亮度 → 同心环盖满全屏抢主体。
+   改成"雷达扫描"的克制版本：环更细、更暗、间距更大。
+   🔴 判据修正（09-13 第四轮）：形状对了（差分图 = 干净同心环）但亮度不足 ——
+   0.42 透明度叠在中灰底上峰值仅 35、MAE 0.74，低于任何合理存在性阈值。
+   环毕竟只占极细的线，**亮度必须补偿线条的稀疏**。提到 .85 并把环加粗到 2.5px。 */
+.fx-post-rings{opacity:var(--op,.85);
+  background-image:repeating-radial-gradient(circle at 50% 50%,
+    rgba(150,225,255,.85) 0 2.5px, transparent 2.5px 52px)}
+
+/* ===== 14. waves 横向波纹（数据/声波背景） ===== */
+/* MAE 1.78 偏弱 → 加粗加亮 */
+.fx-post-waves{opacity:var(--op,.85);
+  background-image:repeating-linear-gradient(180deg,
+    transparent 0 10px, rgba(120,200,255,.58) 10px 13px, transparent 13px 26px,
+    rgba(120,200,255,.34) 26px 28px)}
+
+/* ===== 15. starburst 星芒放射（点缀/高潮，慎用） ===== */
+/* 🔴 肉眼审判修正（09-13 第三轮）：5deg 条带 → 变成两根"白棒"，不是星芒。
+   🔴 判据修正（09-13 第四轮，真缺陷）：改成 1.6deg/9deg 后**更糟** ——
+   差分图显示只有 2 条竖纹、下半屏差分为 0。根因是 **子角度楔形在 conic-gradient
+   里严重走样**：1.6deg 在 385px 宽的层上中心处角宽≈0，40 条芒被抽成 2 条，
+   且 9deg 周期无法整除 360°（= 40 整，勉强），接缝处还叠了一次。
+   正解：① 用 **repeating-conic-gradient** 保证无缝平铺
+        ② 周期取 360 的**整除值**（10deg = 36 芒，干净）
+        ③ 楔形给到 2.2deg —— 细但仍高于一个像素的角分辨率
+        ④ 遮罩**外圈亮、内圈透明**改为「中心留暗 + 芒从 18% 才起」，
+           且不要过早截断，否则芒只剩上面一小截（就是那个 bug）。
+   ⚠️ 铁律：conic-gradient 做星芒，**周期必须整除 360**，否则必出竖缝。 */
+.fx-post-starburst{opacity:var(--op,.62);mix-blend-mode:screen;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,
+    rgba(255,255,255,.92) 0deg 2.2deg, transparent 2.2deg 10deg);
+  -webkit-mask:radial-gradient(circle at 50% 50%,
+    transparent 0%, rgba(0,0,0,.15) 14%, #000 32%, #000 70%, rgba(0,0,0,.35) 100%);
+          mask:radial-gradient(circle at 50% 50%,
+    transparent 0%, rgba(0,0,0,.15) 14%, #000 32%, #000 70%, rgba(0,0,0,.35) 100%)}
+
+/* ===== 16. edgeBurn 边角烧灼（复古照片/档案感） ===== */
+/* ⚠️ 观感调参：加深四角、扩大烧灼范围 */
+.fx-post-edgeburn{opacity:var(--op,.62);mix-blend-mode:multiply;
+  background:
+    radial-gradient(ellipse 72% 64% at 50% 50%, transparent 40%, rgba(92,58,28,.62) 82%, rgba(40,22,8,.92) 100%)}
+
+/* ===== 17. scanBeam 水平扫描条（全息/取景器，位置由 JS 驱动） ===== */
+/* ⚠️ 观感调参：0.42 亮带太淡 → 提到 0.72，带宽略收 */
+.fx-post-scanbeam{opacity:var(--op,0);
+  background:linear-gradient(180deg, transparent 44%, rgba(120,255,220,.72) 50%, transparent 56%);
+  background-size:100% 18%;
+  background-repeat:no-repeat;
+  background-position:0 0}
+
+/* ==========================================================================
+ * 18~19. 【2026-09-14 补】从 Remotion 效果库学来的两层 —— 之前只写进笔记，没落真身
+ * --------------------------------------------------------------------------
+ * 缘起：`_demo/remotion_stack/` 复刻实物做出来才发现，9-04 那轮「Remotion 动效工程」
+ *   笔记里认定的 3 个缺口，**名义上补了、实际一个都没落地**：
+ *     ❌ Grade 层         —— 压根没建（`fx-post-grade` 不存在）
+ *     ❌ 真噪点 feTurb>   —— `fx-post-noise` 仍是 `repeating-conic-gradient` 2px 点阵
+ *     ❌ 暗角 0.55 偏重   —— 反而调到 .72，方向还反了
+ *   教训：**"移植了多少个"是假指标，"真身里能不能用"才是判据。**
+ *   → 本节把前两个真做进来；暗角不动默认值，先出 A/B 数据由老板定（见 demo）。
+ * ========================================================================== */
+
+/* ===== 18. grade 调色层（叠色偏的「半件事」，别指望它统一色温） ===== */
+/* ★ 2026-09-14 实测纠偏（这层差点被当成"捏合器"写进文档）：
+   我们按笔记照搬了「soft-light + 暖冷双色渐变」，然后在复刻实物里量了三种
+   不同来源素材（暖 30.6° / 冷 207.7° / 中性 219.0°）的色相：
+     Grade 关 → 离散度 120.0°     Grade 开 → 离散度 **120.0°**   ← 没动
+   单块确实被推了 3° 左右（方向对、幅度微），但**收敛色相这件事它做不到**。
+   原因：soft-light 是**空间加色**，它给画面「叠一层色偏」，
+   跟底下素材本来是什么色无关 —— 所以它推不动「素材之间的差异」。
+   → 结论：**soft-light 双色渐变 = 风格化叠色偏，不是色温统一器。**
+     真统一要靠**容器级降饱和**，见 §18.1。两层配合才叫调色，单独用哪层都会吹牛。
+   ⚠️ 它是**调色**不是**覆盖**：必须 mix-blend-mode:soft-light，
+      误用 normal 会变成一块半透明色板糊在画面上。 */
+.fx-post-grade{opacity:var(--op,.55);mix-blend-mode:soft-light;
+  background:linear-gradient(var(--grade-ang,160deg),
+    var(--grade-a,#ff9a5c) 0%, rgba(255,255,255,.55) 46%, var(--grade-b,#3aa0ff) 100%)}
+
+/* ===== 18.1 unify 容器级「捏合器」（★ 真能把多来源素材压成一个调子） ===== */
+/* 跟 fx-post-* 的**根本区别**：它不是覆盖层，是**挂在内容容器上的 filter**，
+   作用于「容器合成后的结果」→ 所以它能改变**素材之间的关系**，覆盖层做不到。
+   两项作用：
+     saturate  降饱和 —— 高饱和的暖橙和冷蓝，降下来之后就"互相不打架"了
+     contrast  回补一点对比 —— 降饱和会让画面发灰，用对比度把重量找回来
+   ⚠️ filter 不能靠 CSS transition 平滑（本项目禁 animation/transition 是铁律），
+      **必须由 `__frame(t)` 逐帧写 style.filter**，把插值算在纯函数里。
+   ⚠️ 挂在哪一层要一次想清楚：挂在单个素材上 = 每个素材各自降饱和（也能用，但
+      素材之间的色相差异**一点没变**）；**挂在三块共同的父容器上**才是"捏合"。 */
+.fx-unify{filter:saturate(var(--unify-sat,1)) contrast(var(--unify-contrast,1))}
+
+/* ===== 19. grain 胶片颗粒（真分形噪声，替代 conic 点阵的「编织袋」） ===== */
+/* 与 fx-post-noise 的分工：
+     fx-post-noise  = 规则点阵，适合「数字信号/CNC」感的硬噪点
+     fx-post-grain  = feTurbulence 分形噪声，**真随机**，适合胶片/实拍质感
+
+   ★★ 2026-09-14 实测两轮才做对（两条结论肉眼都看不出来，全靠量）：
+   【第一轮】单层 `mix-blend-mode:overlay` + `--op:.30`，在亮部卡片上量「局部标准差」：
+       无 Grain  → stddev 3.252
+       +Grain    → stddev **2.843**   ← 开了反而更平！
+     根因：**overlay 的公式在 a→1 时对上层变化的响应趋近 0**，
+     而产品卡/白底页面恰好全是亮部 → 颗粒在这类画面上等于没开。
+   【第二轮】换成单层 `normal` 低透：`diff_std` 证明渲染了（0.61~1.03，非 0），
+     但强度弱到 **1:1 尺寸下肉眼基本看不见**（放大 3× 才勉强见）。
+     → 单层混合在"亮部 / 暗部"里总有一头是废的。
+   【正解】`::before` multiply + `::after` screen **双层互补**：
+       multiply 在亮部有效（压出暗斑），screen 在暗部有效（提亮斑），
+       两层错位平铺 → 真颗粒，且**平均亮度基本不变**（不会把画面整体压暗/提亮）。
+   ⚠️ 另两个坑：
+     ① `baseFrequency` 必须 ≥0.65。低了会变成一团团云（不是颗粒）。
+     ② 「胶片闪烁」不是换图，是**每帧挪 backgroundPosition** —— 靠 CSS animation
+        是违规的（本项目禁 animation），且伪元素没法被 JS 直接改样式 →
+        位置走 CSS 变量 `--gx / --gy`，由 `__frame(t)` 写变量，两层错开固定偏移。 */
+.fx-post-grain{opacity:1}
+.fx-post-grain::before,.fx-post-grain::after{content:"";position:absolute;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:180px 180px;background-repeat:repeat}
+.fx-post-grain::before{mix-blend-mode:multiply;opacity:var(--op,.20);
+  background-position:var(--gx,0px) var(--gy,0px)}
+.fx-post-grain::after{mix-blend-mode:screen;opacity:var(--op,.20);
+  background-position:calc(var(--gx,0px) + 41px) calc(var(--gy,0px) + 67px)}
+

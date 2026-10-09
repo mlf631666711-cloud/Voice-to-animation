@@ -1,0 +1,529 @@
+/* ==========================================================================
+ * fx-components.css —— 「语音转动画」管线 · 动效组件样式库
+ * --------------------------------------------------------------------------
+ * 三条约定：
+ *   1) 本文件禁止出现 @keyframes / animation / transition。
+ *      所有过渡由 fx-runtime.js 的纯函数按帧号写入 inline style 或 CSS 变量。
+ *      （源文件里的 transition 已在抽取时全部剔除，请勿再加回来。）
+ *   2) 每段之间零耦合：任意段可单独摘走内联，变量一律写成 var(--x, 兜底值)，
+ *      不依赖 :root 变量、不依赖其它段。
+ *   3) 零外部字体/图片。字体只用系统中文字族。
+ *
+ * 通用驱动约定：
+ *   - 位置/缩放/透明度：JS 直接写 el.style.transform / el.style.opacity
+ *   - 细粒度状态：JS 写 el.style.setProperty('--xx', v)，本文件用 var() 接收
+ *   - 离散状态：JS 用 classList.toggle('on'/'cur'/'active'/'show')
+ * 每段头部注释都标了「接受的变量」，生成器照着注入即可。
+ * ========================================================================== */
+
+
+/* ===== stage / camera 层骨架（公共底座，不需要运行时／自己有布局时可整段删掉） ===== */
+/*
+ * 接受的变量：无
+ * 用法：
+ *   #stage > .fx-layer × 3（背景 rate .3 / 中景 rate .6 / 内容 rate 1.0）
+ *   三层都是 1920×1080 满画面 absolute，transform-origin:0 0，
+ *   由 FX.applyParallax(el, cam, rate) 分别驱动 —— 不要再给 #stage 加 transform。
+ */
+#stage { position:fixed; inset:0; width:1920px; height:1080px; overflow:hidden; }
+.fx-layer {
+  position:absolute; left:0; top:0; width:1920px; height:1080px;
+  transform-origin:0 0;
+  will-change:transform;
+}
+/* 数字/表格类文本统一等宽数字，避免滚动时左右抖动 */
+.fx-num { font-variant-numeric:tabular-nums; }
+
+
+/* ===== .glass 玻璃卡（含渐变描边 + 扫光 + card-title + card-sub） ===== */
+/*
+ * 接受的变量：
+ *   --sweep-bg   扫光位置 "-120% -120%" → "120% 120%"（由 FX.sweep 注入）
+ *   --sweep-op   扫光开关 0 / 1
+ *   --ink        卡内主文字色（默认 #fff）
+ * 子元素：.card-title（卡内左上 mono 小标签）/.card-sub（卡外右侧旁注）
+ *
+ * ⚠⚠ 踩过的坑，改前先读：
+ *   .glass 的基底必须是**深色** rgba(16,20,44,.28~.42)。
+ *   曾经用过浅白 rgba(255,255,255,.12)，结果 backdrop-filter 的 saturate(180%)
+ *   把背景提亮后，纯白字压在亮卡上直接糊成一团、完全看不见。
+ *   改成深紫蓝基底后：#fff 字 vs 深卡 = 强对比，且保留了玻璃的通透层次。
+ *   如果一定要浅色玻璃，请把卡内文字改成深色，别两头不靠。
+ * 来源：video-style-lab/projects/ink-screen-seg1/fx_ink.html:71-131
+ */
+.glass {
+  position:absolute;
+  background:linear-gradient(160deg,
+    rgba(16,20,44,.28) 0%,
+    rgba(16,20,44,.18) 50%,
+    rgba(8,12,28,.42) 100%);
+  backdrop-filter:blur(24px) saturate(180%);
+  -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid transparent;
+  border-radius:18px;
+  box-shadow:
+    0 24px 60px rgba(8,8,28,.45),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -1px 0 rgba(0,0,0,.12);
+  padding:22px 26px;
+  color:var(--ink,#fff);
+  pointer-events:none;
+  /* 不能 overflow:hidden —— .card-sub 挂在卡外右侧会被裁掉。
+     扫光层也不会溢出：background 画在 inset:0 的 ::after 自身盒子内，与 overflow 无关。
+     确实需要裁剪内容的场景，另加 class：.glass--clip{overflow:hidden} */
+  overflow:visible;
+}
+.glass--clip { overflow:hidden; }
+/* 渐变描边层：让玻璃从背景里"抠"出来（硬朗化的关键一层） */
+.glass::before {
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  padding:1.5px;
+  background:linear-gradient(135deg,
+    rgba(255,255,255,.80) 0%,
+    rgba(255,255,255,.10) 35%,
+    rgba(120,180,255,.55) 60%,
+    rgba(255,255,255,.10) 80%,
+    rgba(255,255,255,.55) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
+  pointer-events:none; z-index:1;
+}
+/* 边缘扫光：JS 注入 --sweep-bg / --sweep-op 驱动，不注入时默认全透明 */
+.glass::after {
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background:linear-gradient(115deg,
+    transparent 0%, transparent 35%,
+    rgba(255,255,255,.42) 50%,
+    transparent 65%, transparent 100%);
+  background-size:220% 220%;
+  background-position:var(--sweep-bg,-120% -120%);
+  opacity:var(--sweep-op,0);
+  mix-blend-mode:overlay;
+  pointer-events:none; z-index:2;
+}
+/* 代码/终端场景：基底压得更实，保证 monospace 可读性 */
+.glass--code { background:rgba(8,10,24,.55); }
+.glass--code::after { display:none; }
+
+/* 卡内左上 mono 小标签 */
+.card-title {
+  font:600 15px/1.2 'SF Mono','Cascadia Code','JetBrains Mono',Consolas,monospace;
+  letter-spacing:2.5px;
+  color:var(--ink-dim,rgba(255,255,255,.55));
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+/* 卡外右侧旁注（left:100% 挂在卡右外侧，用前先确认右边有空地） */
+.card-sub {
+  position:absolute; left:100%; top:8px; margin-left:14px;
+  width:var(--card-sub-w,220px);
+  font:600 14px/1.6 system-ui,'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:1.5px;
+  color:var(--ink-faint,rgba(255,255,255,.45));
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+  pointer-events:none;
+}
+
+
+/* ===== .box / .cap / .lbl / .sub 参数框 ===== */
+/*
+ * 接受的变量：无（全部由 inline style 写 opacity/transform；.lbl 文本由 FX.roll 写）
+ * 结构：
+ *   <div class="box"><div class="cap">名称</div>
+ *     <div class="lbl fx-num">32 MB</div><div class="sub">副标</div></div>
+ * .cap 浮在框外左上角（top:-32px），所以 .box 上方必须留 ≥36px 空隙。
+ * 来源：video-style-lab/projects/vga-signal/fx_vga.html:104-112
+ */
+.box {
+  position:absolute;
+  border-radius:14px;
+  border:1px solid var(--box-line,rgba(255,255,255,.13));
+  background:var(--box-bg,rgba(255,255,255,.028));
+  opacity:0;
+}
+.box .cap {
+  position:absolute; left:0; top:-32px;
+  font:700 15px/1 'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:.08em; white-space:nowrap;
+  color:var(--cap-ink,#d6deec);
+  padding:4px 12px; border-radius:8px;
+  background:var(--cap-bg,rgba(8,14,22,.65));
+  backdrop-filter:blur(6px);
+  border:1px solid var(--cap-line,rgba(255,255,255,.10));
+  text-shadow:0 1px 3px rgba(0,0,0,.9);
+}
+.lbl {
+  position:absolute; left:0; width:100%; text-align:center;
+  font:700 var(--lbl-size,25px)/1.2 'SF Mono','Cascadia Code',Consolas,monospace;
+  letter-spacing:.06em;
+  color:var(--lbl-ink,#fff);
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 3px rgba(0,0,0,.85);
+}
+.sub {
+  position:absolute; left:0; width:100%; top:var(--sub-top,70px);
+  text-align:center;
+  font:600 12px/1.4 'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:.05em;
+  color:var(--sub-ink,rgba(255,255,255,.45));
+  text-shadow:0 1px 3px rgba(0,0,0,.9);
+}
+
+
+/* ===== .bar-row / .bar-track / .bar-fill 进度条 ===== */
+/*
+ * 接受的变量：无（进度直接写 .bar-fill 的 style.width，如 '68%'）
+ * 结构：
+ *   <div class="bar-row"><div class="bar-label">标签</div>
+ *     <div class="bar-track"><div class="bar-fill p4"></div></div>
+ *     <div class="bar-val fx-num">68%</div></div>
+ * 来源：video-style-lab/projects/vga-en4/fx_vgaen4.html:128-141
+ */
+.bar-row { display:flex; align-items:center; margin-bottom:26px; }
+.bar-label {
+  width:var(--bar-label-w,220px); flex:none;
+  font:700 23px/1 'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:1px;
+  color:var(--bar-ink,rgba(255,255,255,.55));
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+.bar-track {
+  flex:1; height:var(--bar-h,52px); position:relative;
+  border-radius:8px;
+  background:var(--bar-track-bg,rgba(255,255,255,.05));
+  overflow:hidden;
+}
+.bar-fill {
+  position:absolute; left:0; top:0; height:100%;
+  width:0; border-radius:8px;
+  background:var(--bar-fill-bg,linear-gradient(90deg,rgba(53,224,208,.35),rgba(53,224,208,.85)));
+  box-shadow:var(--bar-fill-glow,0 0 26px rgba(53,224,208,.35));
+}
+.bar-val {
+  margin-left:16px; width:var(--bar-val-w,120px); flex:none;
+  font:800 24px/1 'SF Mono','Cascadia Code',Consolas,monospace;
+  color:var(--bar-ink,rgba(255,255,255,.8));
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+/* 两种常用配色（切换 class 即可，别改 background 内联） */
+.bar-fill.p4  { --bar-fill-bg:linear-gradient(90deg,rgba(53,224,208,.35),rgba(53,224,208,.85)); --bar-fill-glow:0 0 26px rgba(53,224,208,.35); }
+.bar-fill.old { --bar-fill-bg:linear-gradient(90deg,rgba(124,135,152,.28),rgba(124,135,152,.55)); --bar-fill-glow:none; }
+
+
+/* ===== .bub 白底萌系气泡卡 ===== */
+/*
+ * 接受的变量：无（opacity/transform 由 FX.pop 写）
+ * 结构：.bub > .head(>.ico>.svg, .lbl) + .val / .rows(>.row)
+ * 注意：这是**白底深色字**卡片，只能配浅色/明亮场景；深色场景请改用 .glass。
+ * 来源：video-style-lab/projects/mengmeng/fx_mengmeng.html:52-70
+ */
+.bub {
+  position:absolute;
+  border-radius:30px;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 16px 36px rgba(80,130,180,.28), inset 0 1px 0 rgba(255,255,255,.9);
+  opacity:0;
+  color:#1B3B5F;
+}
+.bub::before {
+  content:''; position:absolute; inset:0; border-radius:inherit; padding:2px;
+  background:linear-gradient(135deg,#6FBEEC,#B4E0F0 55%,#FFD93D);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
+  pointer-events:none;
+}
+.bub .head { display:flex; align-items:center; gap:16px; padding:26px 30px 8px; }
+.bub .ico  { width:66px; height:66px; border-radius:20px; flex:none;
+             background:linear-gradient(135deg,#C8E6F5,#E0F2FB);
+             display:flex; align-items:center; justify-content:center; }
+.bub .ico svg { width:44px; height:44px; }
+.bub .lbl  { font:700 21px/1.2 'Bahnschrift','Microsoft YaHei',sans-serif; color:#2C7AB8; letter-spacing:3px; }
+.bub .val  { font:800 41px/1.25 'Bahnschrift','Microsoft YaHei',sans-serif; color:#1B3B5F; padding:10px 30px 12px 112px; }
+.bub .val em   { font-style:normal; color:#E67700; }
+.bub .rows { padding:6px 30px 26px 112px; }
+.bub .row  { font:700 33px/1.65 'Bahnschrift','Microsoft YaHei',sans-serif; color:#1B3B5F; }
+.bub .row em   { font-style:normal; color:#5A8FBF; }
+
+
+/* ===== .bubble 深色聊天气泡（带尾巴 + 三点） ===== */
+/*
+ * 接受的变量：无（入场用 FX.pop；三点由 JS 逐帧写每个 i 的 opacity 做呼吸/轮转）
+ * 结构：.bubble > .av / .bname / .btag / .tail / .dots(>i ×3)
+ * 来源：video-style-lab/projects/mengmeng/fx_xingjiao_overlay.html:23-38
+ */
+.bubble {
+  position:absolute; height:var(--bubble-h,104px);
+  border-radius:26px;
+  background:var(--bubble-bg,rgba(16,28,56,.88));
+  border:1px solid var(--bubble-line,rgba(255,255,255,.10));
+  box-shadow:0 14px 34px rgba(0,0,0,.45);
+  opacity:0; color:#fff;
+}
+.bubble .av {
+  position:absolute; left:18px; top:22px; width:60px; height:60px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bubble-av-bg,linear-gradient(135deg,#5AA9E6,#7C5CFF));
+  font:900 26px/1 'Bahnschrift','Microsoft YaHei',sans-serif; color:#fff;
+}
+.bubble .bname { position:absolute; left:94px; top:18px;
+  font:900 34px/1.1 'Bahnschrift','Microsoft YaHei',sans-serif; color:#fff; letter-spacing:1px; }
+.bubble .btag  { position:absolute; left:94px; top:62px;
+  font:700 18px/1.2 'Microsoft YaHei',sans-serif; color:rgba(255,255,255,.66); letter-spacing:2px; }
+/* 尾巴：指向左侧。要指向右侧就整段换成 left:auto;right:-16px + border-left */
+.bubble .tail {
+  position:absolute; left:-16px; top:38px; width:0; height:0;
+  border-top:14px solid transparent; border-bottom:14px solid transparent;
+  border-right:18px solid var(--bubble-bg,rgba(16,28,56,.88));
+}
+.bubble .dots   { position:absolute; right:22px; top:40px; display:flex; gap:6px; }
+.bubble .dots i { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.35); }
+
+
+/* ===== .spark 星芒 ===== */
+/*
+ * 接受的变量：无（直接写 el.style.opacity；典型驱动见 COMPONENTS.md）
+ * 典型：el.style.opacity = 0.18 + 0.42 * (0.5 + 0.5*Math.sin(t*speed + phase));
+ * 八角星靠 clip-path 实现，改颜色/大小用 inline style 覆盖（width/height/background/filter）。
+ * 来源：video-style-lab/projects/mengmeng/fx_mengmeng.html:34-37
+ */
+.spark {
+  position:absolute; width:26px; height:26px; opacity:0;
+  clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);
+  background:var(--spark-c,#FFC857);
+  filter:drop-shadow(0 0 6px var(--spark-glow,rgba(255,200,87,.85)));
+}
+.spark.small { width:14px; height:14px; --spark-c:#fff; --spark-glow:rgba(255,255,255,.9); }
+
+
+/* ===== .chip pill 标签（含 .on / .cur 两档状态） ===== */
+/*
+ * 接受的变量：无（状态用 classList.toggle('cur') / .on）
+ * 语义：.on = 已走过的章节；.cur = 当前章节（高亮+发光）
+ * 来源：video-style-lab/projects/vga-p4-dma/fx_p4dma.html:53-58
+ */
+.chip {
+  padding:8px 20px; border-radius:999px;
+  font:600 17px/1 'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:.04em;
+  color:var(--chip-ink,rgba(255,255,255,.72));
+  background:var(--chip-bg,rgba(8,14,22,.55));
+  border:1px solid var(--chip-line,rgba(255,255,255,.18));
+  backdrop-filter:blur(4px);
+  text-shadow:0 1px 3px rgba(0,0,0,.85);
+  white-space:nowrap;
+}
+.chip.on  { color:var(--chip-on-ink,#e6ecf6); background:var(--chip-on-bg,rgba(8,14,22,.65)); border-color:rgba(255,255,255,.30); }
+.chip.cur {
+  color:var(--chip-cur-ink,#ffb088);
+  background:var(--chip-cur-bg,rgba(40,18,8,.65));
+  border-color:var(--chip-cur-line,#ff7a3c);
+  box-shadow:0 0 18px rgba(255,122,60,.35), inset 0 0 0 1px rgba(255,122,60,.4);
+}
+
+
+/* ===== .sw 色板图例 ===== */
+/*
+ * 接受的变量（JS 逐帧注入，替代 pop 的 transform 写法）：
+ *   --sy  上移偏移 px（16 → 0）
+ *   --ss  缩放（.86 → 1）
+ *   --so  透明度（0 → 1）
+ *   --sw-tc 字色（白底/黄底等浅色块务必设深色如 #1c1c1c，否则白字糊在浅底上）
+ * .sw.un 代表"未选中/未启用"：自动压到 42% 透明度 + 红色斜杠
+ * 来源：video-style-lab/projects/ink-en2/fx_inken2.html:121-130
+ */
+.sw {
+  flex:1; height:var(--sw-h,60px); border-radius:10px;
+  position:relative; overflow:hidden;
+  background:var(--sw-c,#888);
+  box-shadow:0 6px 18px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.16);
+  transform:translateY(var(--sy,16px)) scale(var(--ss,.86));
+  opacity:var(--so,0);
+}
+.sw .nm { position:absolute; left:0; right:0; bottom:6px; text-align:center;
+  font:800 11px/1 'PingFang SC','Microsoft YaHei',sans-serif; letter-spacing:1px;
+  color:var(--sw-tc,#fff); text-shadow:0 1px 3px rgba(0,0,0,.85); }
+.sw .cd { position:absolute; left:0; right:0; top:5px; text-align:center;
+  font:800 11px/1 'SF Mono',Consolas,monospace; letter-spacing:.5px;
+  color:var(--sw-tc,#fff); text-shadow:0 1px 3px rgba(0,0,0,.85); }
+.sw.light .nm, .sw.light .cd { text-shadow:none; }   /* 浅色块配 --sw-tc 深字时去掉黑影 */
+.sw.un { opacity:calc(var(--so,0) * .42); }
+.sw.un::after {
+  content:''; position:absolute; left:8%; right:8%; top:50%; height:2px;
+  background:#ff5f57; transform:rotate(-14deg); box-shadow:0 0 8px rgba(255,95,87,.9);
+}
+
+
+/* ===== .node / .arrow 数据流节点链 ===== */
+/*
+ * 接受的变量（JS 逐帧注入到 .node 上）：
+ *   --no  透明度（0→1）
+ *   --ny  上移偏移 px（14→0）
+ *   --nr  旋转 deg（如转发/抖动用）
+ *   --ns  缩放（1→1.06 做强调）
+ * .arrow 与前一个 .node 共享 --no
+ * .node.act = 当前激活节点（金框高亮）
+ * 来源：video-style-lab/projects/ink-en2/fx_inken2.html:136-152
+ */
+.node {
+  width:var(--node-w,150px); flex:none;
+  display:flex; flex-direction:column; align-items:center; gap:9px;
+  opacity:var(--no,0);
+  transform:translateY(var(--ny,14px));
+}
+.node .nb {
+  width:var(--node-box,96px); height:var(--node-box,96px); border-radius:12px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+  transform:rotate(var(--nr,0deg)) scale(var(--ns,1));
+}
+.node .nb .ic  { font-size:26px; }
+.node .nb .dim { font:800 13px/1 'SF Mono',Consolas,monospace; color:var(--num,#ffd86b);
+                 text-shadow:0 1px 2px rgba(0,0,0,.55); }
+.node .lb { font:800 12px/1.3 'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:1.2px; text-align:center; color:var(--ink-dim,rgba(255,255,255,.55));
+  text-shadow:0 1px 2px rgba(0,0,0,.55); }
+.node.act .nb { border-color:rgba(255,216,107,.65); background:rgba(255,216,107,.12); }
+.arrow { font-size:24px; color:var(--ink-faint,rgba(255,255,255,.45)); opacity:var(--no,.2); flex:none; }
+
+
+/* ===== .board-card 芯片 / SoC 图示 ===== */
+/*
+ * 接受的变量：无
+ * 离散驱动（无补间，按帧切换状态）：
+ *   .led-row i.on        JS: classList.toggle('on', cond)
+ *   .pins-l/.pins-r 常亮
+ *   .overlay.show        JS: classList.toggle('show', cond) —— 遮罩+徽章
+ * 结构与原始工程一致，但把内部绝对坐标由固定 px 改成百分比/居中，
+ * 这样换卡片尺寸不用重算坐标（原版 fx_ink.html:259-274 是写死的 220×380）。
+ * 来源：video-style-lab/projects/ink-screen-seg1/fx_ink.html:259-274 / :385-393
+ */
+.board-card {
+  position:absolute;
+  padding:26px;
+  display:flex; flex-direction:column; align-items:center;
+}
+.board-card .head {
+  font:700 14px/1 'PingFang SC','Microsoft YaHei',sans-serif;
+  letter-spacing:2.5px; margin-bottom:20px;
+  color:var(--ink-dim,rgba(255,255,255,.55));
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+.board-card .board {
+  position:relative;
+  width:100%; flex:1; min-height:120px;
+  background:var(--board-bg,rgba(8,10,24,.5));
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:14px; overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,0,0,.20), inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.board-card .chip {
+  position:absolute; left:50%; top:52%;
+  transform:translate(-50%,-50%);
+  width:46%; height:26%;
+  background:linear-gradient(135deg,rgba(255,255,255,.08) 0%,rgba(255,255,255,.02) 100%);
+  border:1px solid rgba(255,255,255,.30); border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font:700 17px/1 'SF Mono',Consolas,monospace;
+  letter-spacing:1.5px; color:var(--ink-soft,rgba(255,255,255,.86));
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+}
+.board-card .led-row { position:absolute; left:8%; top:7%; display:flex; gap:8px; }
+.board-card .led-row i { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.20); }
+.board-card .led-row i.on { background:#6cf08c; box-shadow:0 0 12px #6cf08c; }
+.board-card .pins-l,
+.board-card .pins-r { position:absolute; top:34%; height:34%; width:12px;
+  display:flex; flex-direction:column; justify-content:space-between; }
+.board-card .pins-l { left:5px; }
+.board-card .pins-r { right:5px; }
+.board-card .pins-l i,
+.board-card .pins-r i { width:12px; height:5px; background:rgba(255,217,107,.55); border-radius:1px; }
+.board-card .overlay {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(6,8,18,.65);
+  opacity:0;                       /* ← 原版这里是 transition:.35s，已剔除：由 JS 切 .show 直接跳变 */
+}
+.board-card .overlay.show { opacity:1; }
+.board-card .overlay .badge {
+  background:var(--badge-bg,#6b8aff); color:#fff;
+  padding:10px 22px; border-radius:10px;
+  font:800 18px/1 'PingFang SC','Microsoft YaHei',sans-serif; letter-spacing:1.5px;
+  box-shadow:0 6px 18px rgba(0,0,0,.42), 0 1px 3px rgba(0,0,0,.4);
+}
+
+
+/* ===== .code-line / .d-line 代码行 & 推导行 ===== */
+/*
+ * 接受的变量：
+ *   --do  行透明度（0→1）
+ *   --dx  行左移 px（-14 → 0）
+ * .code-line.active = 当前高亮行（左侧金条 + 渐变底）
+ * 用于 .glass--code 卡内；推导行 .d-line 字号更大，单独用也一样。
+ * 来源：video-style-lab/projects/ink-screen-seg1/fx_ink.html:191、ink-en2/fx_inken2.html:152
+ */
+.code-line {
+  font:500 22px/1.65 'SF Mono','Cascadia Code','JetBrains Mono',Consolas,monospace;
+  color:var(--ink,#fff); white-space:pre;
+  opacity:var(--do,1);
+  transform:translateX(var(--dx,0px));
+  text-shadow:0 1px 3px rgba(0,0,0,.55);
+}
+.code-line .kw  { color:var(--kw,#ff9a8a); font-weight:700; }
+.code-line .num { color:var(--num,#ffd86b); font-weight:700; }
+.code-line .com { color:var(--com,rgba(255,255,255,.58)); font-style:italic; }
+.code-line .pin { color:var(--str,#8ff0d0); font-weight:600; }
+.code-line.active {
+  background:linear-gradient(90deg,rgba(255,217,107,.10) 0%,rgba(255,217,107,0) 100%);
+  border-left:3px solid var(--num,#ffd86b);
+  padding-left:8px; margin-left:-11px;
+}
+.d-line {
+  font:700 34px/1.4 'SF Mono','Cascadia Code',Consolas,monospace;
+  color:var(--ink-soft,rgba(255,255,255,.86));
+  letter-spacing:1px; white-space:nowrap;
+  opacity:var(--do,1);
+  transform:translateX(var(--dx,0px));
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 3px rgba(0,0,0,.55);
+}
+.d-line .op  { color:var(--com,rgba(255,255,255,.58)); font-weight:500; }
+.d-line .res { color:var(--num,#35e0d0); }
+
+
+/* ===== 后期覆盖层（整画面一次性叠加，可任意组合） ===== */
+/*
+ * 接受的变量：只有 --op（层透明度），JS 写 style.opacity 也可以。
+ * 全部 pointer-events:none，可整层丢在内容之上做"摄影机滤镜"。
+ * 这些是 Remotion 同名效果的 CSS 等价实现：
+ *   scanlines / vignette / gridlines / lightLeak
+ */
+.fx-scanlines {
+  position:absolute; inset:0; pointer-events:none;
+  opacity:var(--op,.18);
+  background:repeating-linear-gradient(180deg,
+    rgba(0,0,0,.42) 0px, rgba(0,0,0,.42) 1px, transparent 1px, transparent 3px);
+}
+.fx-vignette {
+  position:absolute; inset:0; pointer-events:none;
+  opacity:var(--op,1);
+  background:radial-gradient(ellipse 76% 68% at 50% 50%,
+    rgba(0,0,0,0) 40%, rgba(0,0,0,.32) 78%, rgba(0,0,0,.62) 100%);
+}
+.fx-gridlines {
+  position:absolute; inset:0; pointer-events:none;
+  opacity:var(--op,.5);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 1px, transparent 1px 40px);
+}
+.fx-lightleak {
+  position:absolute; inset:0; pointer-events:none;
+  opacity:var(--op,.55);
+  mix-blend-mode:screen;
+  background:radial-gradient(ellipse 60% 70% at 88% 12%,
+    rgba(255,196,120,.55) 0%, rgba(255,120,80,.22) 38%, transparent 70%);
+}

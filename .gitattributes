@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# 统一换行符 —— 让「clone 出来的字节」与「仓库里存的字节」一致。
+#
+# 为什么需要这一条：
+#   本仓的 `kit/templates/skeleton.html` 会被 `kit/new_project.js` **读进来生成工程文件**。
+#   而 Windows 客户端的 git 默认开着 `core.autocrlf=true`，clone 时会把 LF 转成 CRLF，
+#   于是**同一份模板**在 Windows 上生成出来的文件比 Linux / macOS 多出 N 个 CR 字节：
+#
+#     实测（2026-10-08）：fx_demo.html  48892 字节 (LF)  →  49983 字节 (CRLF)，差 1091
+#     归一化掉 CR 后两边**逐字节完全相同** —— 内容一字不差，但字节数对不上。
+#
+#   后果不是崩溃，是「README 里写的期望字节数在 Windows 上是错的」，
+#   以及任何按字节比对的验收脚本会给出**假 FAIL**。
+#
+# `eol=lf` 让两端 checkout 的结果都是 LF ⇒ 字节数可复现，README 的数才可信。
+# ─────────────────────────────────────────────────────────────────────────────
+
+* text=auto eol=lf
+
+# 二进制：明确不做换行转换（否则 git 会试图"修复"它们）
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.mp4  binary
+*.webm binary
+*.ttf  binary
+*.otf  binary
+*.woff binary
+*.woff2 binary
+
+# 锁文件 / 生成物：永远按原样比对，别做 diff 噪音
+*.min.js  -diff
+*.min.css -diff

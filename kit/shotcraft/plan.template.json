@@ -1,0 +1,19 @@
+{
+  "project": "rv1106-seg5",
+  "source": "文案文件路径（可选，只作溯源）",
+  "fps": 30,
+  "_说明": "shots 由人/AI 读文案后切镜并写 intent（动效语汇，不是内容词）。terms/card/note 可选。",
+  "_cardIntent说明": "★ 术语库与镜头卡库语汇不同 —— 同一个 intent 喂两个库会互相打架。需要时用 cardIntent 单独喂镜头卡库（缺省回落到 intent）。",
+  "shots": [
+    {
+      "shot": 1,
+      "dur": 1.9,
+      "text": "这一镜的文案原文",
+      "intent": "逐字显现 大字入场 描线生长 环形进度",
+      "cardIntent": "大字逐字入场 混排字重 文字reveal",
+      "terms": [],
+      "card": "",
+      "note": "这一镜的落地取舍（可选）"
+    }
+  ]
+}

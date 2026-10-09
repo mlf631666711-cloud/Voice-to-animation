@@ -1,0 +1,29 @@
+# ── 渲染产物（重跑几分钟就有，不进版本库）──
+frames/
+*.mp4
+*.webm
+*.mov
+
+# 抽帧 / 接触印样 / 临时图
+_shot_*.png
+_pick_*.png
+_contact*.png
+_sheet_*.jpg
+
+# ── 依赖 ──
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# ── 素材件：下载的音效 / 素材别提交进仓库 ──
+# 多数站点明确禁止「把原始文件作为独立素材再分发」（见 README「音效从哪来」）。
+# 这里**默认忽略**，让「忘了删」不至于变成版权事故。
+assets/
+*.wav
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
