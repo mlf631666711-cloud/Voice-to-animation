@@ -1,0 +1,118 @@
+/* =============================================================================
+ * fx-components.css · 内联 fallback   【DEPRECATED — 保留勿删】
+ * -----------------------------------------------------------------------------
+ * 正式版是 kit/fx-components.css，new_project.js 优先注入它；本文件只在正式版缺失时兜底。
+ * 历史工程重渲时还可能依赖它，别删。
+ *
+ * 按 `/* ===== 组件名 ===== *\/` 分段，可整段摘走。
+ * ========================================================================== */
+
+/* ===== 玻璃卡 glass ===== */
+.glass {
+  position: absolute;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  /* 墨水屏配方：深冷底 + 低透，避免"白卡灰字"字糊病理 */
+  background: linear-gradient(180deg, rgba(20, 26, 54, .42), rgba(10, 14, 30, .28));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .06);
+  backdrop-filter: blur(6px);
+}
+
+/* ===== 方框 box ===== */
+.box {
+  position: absolute;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  background: rgba(255, 255, 255, .028);
+}
+.box .cap {
+  position: absolute; left: 0; top: -30px;
+  font-size: 15px; font-weight: 700; letter-spacing: .08em; white-space: nowrap;
+  color: #d6deec; padding: 4px 12px; border-radius: 8px;
+  background: rgba(8, 14, 22, .65);
+  border: 1px solid rgba(255, 255, 255, .10);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+
+/* ===== 进度条 bar-fill ===== */
+.bar { position: absolute; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.bar-fill {
+  position: absolute; left: 0; top: 0; height: 100%; width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #35e0d0, #7cfff0);
+  box-shadow: 0 0 16px rgba(53, 224, 208, .55);
+}
+
+/* ===== 气泡 bub ===== */
+.bub {
+  position: absolute;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 17px; font-weight: 600; letter-spacing: .03em;
+  color: #e6ecf6;
+  background: rgba(8, 14, 22, .66);
+  border: 1px solid rgba(255, 255, 255, .12);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+
+/* ===== 火花 spark ===== */
+.spark {
+  position: absolute;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #7cfff0;
+  box-shadow: 0 0 18px rgba(124, 255, 240, .95);
+}
+
+/* ===== 标签 chip ===== */
+.chip {
+  padding: 8px 20px; border-radius: 999px;
+  font-size: 17px; font-weight: 600; letter-spacing: .04em;
+  border: 1px solid rgba(255, 255, 255, .18);
+  color: #b8c2d4; background: rgba(8, 14, 22, .55);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .85);
+  white-space: nowrap;
+}
+.chip.on { border-color: rgba(255, 255, 255, .30); color: #e6ecf6; background: rgba(8, 14, 22, .65); }
+.chip.cur {
+  border-color: #ff7a3c; color: #ffb088; background: rgba(40, 18, 8, .65);
+  box-shadow: 0 0 18px rgba(255, 122, 60, .35), inset 0 0 0 1px rgba(255, 122, 60, .4);
+}
+
+/* ===== 开关 sw ===== */
+.sw {
+  position: absolute;
+  width: 96px; height: 44px; border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .16);
+}
+.sw .knob {
+  position: absolute; left: 4px; top: 4px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #8e9aad;
+}
+.sw.on { background: rgba(53, 224, 208, .22); border-color: rgba(53, 224, 208, .55); }
+.sw.on .knob { background: #35e0d0; box-shadow: 0 0 16px rgba(53, 224, 208, .8); }
+
+/* ===== 节点 node ===== */
+.node {
+  position: absolute;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .04);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; letter-spacing: .04em;
+  color: #e6ecf6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+
+/* ===== 主板卡 #board-card ===== */
+#board-card {
+  position: absolute;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .022) 0 2px, transparent 2px 24px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .022) 0 2px, transparent 2px 24px),
+    linear-gradient(180deg, rgba(18, 26, 48, .55), rgba(8, 12, 24, .40));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
