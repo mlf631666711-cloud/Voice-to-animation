@@ -265,7 +265,8 @@ Voice-to-animation/
 │   ├── 美学与排版准则.md        Aesthetics & typography — the taste rules written down as numbers
 │   ├── 环境与依赖.md            What to install and how to verify
 │   ├── 音效获取指南.md          Where to get sound effects, how to pick and place them
-│   └── 坑库.md                  Real failure log (symptom → root cause → fix → evidence)
+│   ├── 坑库.md                  Real failure log (symptom → root cause → fix → evidence)
+│   └── 资产库归档.md            6 kinds of "silent false success" in generated index pages — assets reported as "0 missing" but never scraped / a check that only looks at the first element / stale output that passes every check
 ├── 审核员/
 │   ├── 检测标准.md              Executable criteria (numeric clauses)
 │   └── 角色卡.md                The independent reviewer's brief and sources of authority
